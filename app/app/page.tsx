@@ -32,7 +32,7 @@ export default function Home() {
           Create Wallet
         </a>
         <a
-          href="/dashboard"
+          href="/signin"
           className="w-full py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-center transition-colors border border-slate-700"
         >
           Sign In

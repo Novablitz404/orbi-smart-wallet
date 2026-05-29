@@ -101,7 +101,7 @@ export async function signWithPasskey(
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function derivePasskeyId(credentialId: string): Promise<string> {
+export async function derivePasskeyId(credentialId: string): Promise<string> {
   const bytes = base64urlToBuffer(credentialId);
   const hash = await crypto.subtle.digest('SHA-256', bytes.buffer as ArrayBuffer);
   return bufferToHex(new Uint8Array(hash).slice(0, 20));

@@ -52,4 +52,29 @@ router.post('/create', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /v1/wallet/lookup
+ * Restore a session after sign-out. Given a passkeyId, returns the stored
+ * wallet address and email so the app can rebuild localStorage.
+ */
+router.post('/lookup', async (req: Request, res: Response) => {
+  const { passkeyId } = req.body;
+  if (!passkeyId) return res.status(400).json({ error: 'passkeyId required' });
+
+  try {
+    const result = await pool.query(
+      `SELECT wallet_address, email FROM users WHERE passkey_id = $1`,
+      [passkeyId],
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Wallet not found' });
+    }
+    const { wallet_address, email } = result.rows[0];
+    return res.json({ walletAddress: wallet_address, email });
+  } catch (err: any) {
+    console.error('[wallet/lookup]', err);
+    return res.status(500).json({ error: 'Lookup failed' });
+  }
+});
+
 export default router;
