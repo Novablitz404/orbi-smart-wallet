@@ -1,8 +1,54 @@
 import { Router, Request, Response } from 'express';
+import { xdr, Address } from '@stellar/stellar-sdk';
 import { pool } from '../../lib/db';
 import { deriveWalletAddress, deployWallet } from '../../lib/wallet';
+import { getServer, getNativeSacId } from '../../lib/stellar';
 
 const router = Router();
+
+/**
+ * GET /v1/wallet/balance/:address
+ * Returns the native XLM balance of a smart wallet from the Stellar SAC.
+ */
+router.get('/balance/:address', async (req: Request, res: Response) => {
+  const { address } = req.params;
+  try {
+    const server = getServer();
+    const nativeSacId = getNativeSacId();
+
+    const balanceKey = xdr.LedgerKey.contractData(
+      new xdr.LedgerKeyContractData({
+        contract: new Address(nativeSacId).toScAddress(),
+        key: xdr.ScVal.scvVec([
+          xdr.ScVal.scvSymbol('Balance'),
+          new Address(address).toScVal(),
+        ]),
+        durability: xdr.ContractDataDurability.persistent(),
+      }),
+    );
+
+    const result = await server.getLedgerEntries(balanceKey);
+
+    if (result.entries.length === 0) {
+      return res.json({ balanceStroops: '0', xlm: '0.0000000' });
+    }
+
+    const val = result.entries[0].val.contractData().val();
+    // SAC balance value is a Map: { amount: i128, authorized: bool, clawback: bool }
+    const amountEntry = val.map()?.find(e => e.key().sym() === 'amount');
+    if (!amountEntry) return res.json({ balanceStroops: '0', xlm: '0.0000000' });
+
+    const i128 = amountEntry.val().i128();
+    // For practical XLM amounts hi=0, lo holds the full stroop amount
+    const balanceStroops = BigInt(i128.lo().toString());
+    const xlm = (Number(balanceStroops) / 10_000_000).toFixed(7);
+
+    return res.json({ balanceStroops: balanceStroops.toString(), xlm });
+  } catch (err: any) {
+    console.error('[wallet/balance]', err);
+    return res.status(500).json({ error: 'Balance query failed' });
+  }
+});
 
 /**
  * GET /v1/wallet/check-email?email=...

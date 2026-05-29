@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadWallet, clearWallet } from '../../lib/storage';
 
+const RELAY_URL = process.env.NEXT_PUBLIC_RELAY_URL;
+
 function truncate(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
@@ -11,12 +13,18 @@ function truncate(addr: string) {
 export default function DashboardPage() {
   const router = useRouter();
   const [wallet, setWallet] = useState<ReturnType<typeof loadWallet>>(null);
+  const [balance, setBalance] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const w = loadWallet();
     if (!w) { router.replace('/'); return; }
     setWallet(w);
+
+    fetch(`${RELAY_URL}/v1/wallet/balance/${w.walletAddress}`)
+      .then(r => r.json())
+      .then((d: { xlm?: string }) => setBalance(d.xlm ?? '0.0000000'))
+      .catch(() => setBalance('0.0000000'));
   }, [router]);
 
   function copyAddress() {
@@ -51,7 +59,13 @@ export default function DashboardPage() {
       {/* Balance card */}
       <div className="mt-4 rounded-2xl bg-gradient-to-br from-blue-600/20 to-violet-600/20 border border-blue-500/20 p-6 flex flex-col items-center gap-2">
         <p className="text-slate-400 text-sm">Total Balance</p>
-        <p className="text-4xl font-bold text-white">0 XLM</p>
+        <p className="text-4xl font-bold text-white">
+          {balance === null ? (
+            <span className="animate-pulse text-slate-500">···</span>
+          ) : (
+            `${parseFloat(balance).toFixed(2)} XLM`
+          )}
+        </p>
         <p className="text-slate-500 text-xs">≈ $0.00 USD</p>
 
         {/* Address */}
