@@ -3,8 +3,6 @@ import {
   Address,
   nativeToScVal,
 } from '@stellar/stellar-sdk';
-import Long from 'long';
-import { randomBytes } from 'crypto';
 
 /**
  * Build a combined SorobanAuthorizationEntry for the user's smart wallet.
@@ -75,14 +73,15 @@ export function buildCombinedAuthEntry(params: {
     subInvocations: [],
   });
 
-  const nonceBytes = randomBytes(8);
-  const nonce = Long.fromBits(nonceBytes.readInt32BE(4), nonceBytes.readInt32BE(0), false);
+  // Use xdr.Int64 (the SDK's own Hyper type) — NOT the standalone `long` package,
+  // which fails the js-xdr `instanceof Hyper` check with "is not a Hyper".
+  const nonce = xdr.Int64.fromString(String(Math.floor(Math.random() * 2 ** 52)));
 
   return new xdr.SorobanAuthorizationEntry({
     credentials: xdr.SorobanCredentials.sorobanCredentialsAddress(
       new xdr.SorobanAddressCredentials({
         address: new Address(walletAddress).toScAddress(),
-        nonce: nonce as unknown as xdr.Int64,
+        nonce,
         signatureExpirationLedger: currentLedger + 1000,
         signature: xdr.ScVal.scvVoid(),
       }),
