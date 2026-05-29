@@ -1,17 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { enqueue } from '../../lib/queue';
-import { validateApiKey, extractBearerToken } from '../../lib/auth';
 import { pool } from '../../lib/db';
 
 const router = Router();
 
 router.post('/', async (req: Request, res: Response) => {
-  const token = extractBearerToken(req.headers.authorization);
-  if (!token || !(await validateApiKey(token))) {
-    return res.status(401).json({ error: 'Invalid API key' });
-  }
-
   const { authEntryXdr, feeAuthEntryXdr, call, walletAddress, quoteId } = req.body;
 
   if (!authEntryXdr || !call?.contractId || !call?.function || !Array.isArray(call?.argsXdr) || !walletAddress || !quoteId) {

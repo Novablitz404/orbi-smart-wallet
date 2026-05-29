@@ -1,17 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { xdr } from '@stellar/stellar-sdk';
 import { simulateGasFee } from '../../lib/pricer';
-import { validateApiKey, extractBearerToken } from '../../lib/auth';
 import { buildCombinedAuthEntry } from '../../lib/authEntry';
 
 const router = Router();
 
 router.post('/', async (req: Request, res: Response) => {
-  const token = extractBearerToken(req.headers.authorization);
-  if (!token || !(await validateApiKey(token))) {
-    return res.status(401).json({ error: 'Invalid API key' });
-  }
-
   const { contractId, functionName, argsXdr, walletAddress } = req.body;
 
   if (!contractId || !functionName || !Array.isArray(argsXdr) || !walletAddress) {
