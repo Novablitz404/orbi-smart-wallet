@@ -40,26 +40,18 @@ export async function simulateGasFee(params: SimulateParams): Promise<GasQuote> 
   const account = await server.getAccount(deployer.publicKey());
   const ledger = await server.getLatestLedger();
 
-  const nativeSacId = getNativeSacId();
-
   // Soroban recording mode can't simulate custom account require_auth() when the
   // wallet isn't the root invocation. Simulate the inner op directly from the
-  // deployer using freshly-built args (avoids Long/Hyper XDR re-serialization bugs),
-  // then apply a 3x multiplier for execute_batch + execute_with_fee + fee overhead.
-  //
-  // For transfer ops: rebuild as transfer(deployer, to, amount) with a fixed 1-stroop
-  // amount — resource cost doesn't depend on the transfer amount.
-  let simArgs: xdr.ScVal[];
-  if (functionName === 'transfer') {
-    const to = args[1] ?? new Address(deployer.publicKey()).toScVal();
-    simArgs = [
-      new Address(deployer.publicKey()).toScVal(),
-      to,
-      nativeToScVal(1n, { type: 'i128' }),
-    ];
-  } else {
-    simArgs = args;
-  }
+  // deployer with entirely fresh args — never reuse deserialized client XDR to
+  // avoid Long/Hyper type mismatch errors. Resource cost doesn't depend on the
+  // specific addresses or amounts.
+  // 3x multiplier accounts for execute_batch + execute_with_fee + fee collection.
+  const deployerScVal = new Address(deployer.publicKey()).toScVal();
+  const oneStroop = nativeToScVal(1n, { type: 'i128' });
+
+  const simArgs: xdr.ScVal[] = functionName === 'transfer'
+    ? [deployerScVal, deployerScVal, oneStroop]
+    : Array(args.length).fill(deployerScVal);
 
   const innerContract = new Contract(contractId);
   const tx = new TransactionBuilder(account, {

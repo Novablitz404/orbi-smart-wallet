@@ -6,11 +6,10 @@ import {
   Transaction,
   BASE_FEE,
   nativeToScVal,
+  rpc,
 } from '@stellar/stellar-sdk';
 import { getServer, getDeployerKeypair, getBundlerContractId, getPassphrase, getNativeSacId, getFeeCollector } from './stellar';
 import { PendingOp, createBatch, markBatched, markConfirmed, markFailed } from './queue';
-import { isWalletDeployed, buildDeployOperation } from './wallet';
-import { pool } from './db';
 
 function buildExecuteWithFeeCall(
   walletAddress: string,
@@ -50,49 +49,17 @@ function isResourceError(err: unknown): boolean {
   return msg.includes('exceeded') || msg.includes('budget') || msg.includes('resources');
 }
 
-interface WalletInfo {
-  passkeyId: string;
-  publicKey: string;
-}
-
-async function getWalletInfo(walletAddress: string): Promise<WalletInfo | null> {
-  const { rows } = await pool.query(
-    `SELECT passkey_id, public_key FROM users WHERE wallet_address = $1`,
-    [walletAddress],
-  );
-  return rows.length > 0 ? { passkeyId: rows[0].passkey_id, publicKey: rows[0].public_key } : null;
-}
-
 async function attemptSubmit(ops: PendingOp[]): Promise<string> {
   const server = getServer();
   const deployer = getDeployerKeypair();
   const bundlerContractId = getBundlerContractId();
   const networkPassphrase = getPassphrase();
-
-  const account = await server.getAccount(deployer.publicKey());
-
-  const uniqueWallets = [...new Set(ops.map(op => op.walletAddress))];
-  const deploymentOps: ReturnType<typeof buildDeployOperation>[] = [];
-
-  await Promise.all(
-    uniqueWallets.map(async walletAddress => {
-      const deployed = await isWalletDeployed(walletAddress);
-      if (!deployed) {
-        const info = await getWalletInfo(walletAddress);
-        if (!info) return;
-        console.log(`[batcher] Deploying wallet ${walletAddress}`);
-        deploymentOps.push(buildDeployOperation(
-          Buffer.from(info.passkeyId, 'hex'),
-          Buffer.from(info.publicKey, 'hex'),
-          walletAddress,
-        ));
-      }
-    }),
-  );
-
   const nativeSacId = getNativeSacId();
   const feeCollector = getFeeCollector();
 
+  const account = await server.getAccount(deployer.publicKey());
+
+  // Each op → wallet.execute_with_fee(...) call inside execute_batch
   const calls = ops.map(op => {
     const opArgs = (op.argsXdr as unknown as string[]).map(a =>
       xdr.ScVal.fromXDR(Buffer.from(a, 'base64')),
@@ -104,41 +71,37 @@ async function attemptSubmit(ops: PendingOp[]): Promise<string> {
   });
 
   const bundlerContract = new Contract(bundlerContractId);
-  const txBuilder = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase });
+  const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase })
+    .addOperation(bundlerContract.call('execute_batch', xdr.ScVal.scvVec(calls)))
+    .setTimeout(300)
+    .build();
 
-  for (const deployOp of deploymentOps) {
-    txBuilder.addOperation(deployOp);
-  }
-  txBuilder.addOperation(bundlerContract.call('execute_batch', xdr.ScVal.scvVec(calls))).setTimeout(300);
-
-  const tx = txBuilder.build();
-
-  const authEntries = ops.map(op =>
+  // Each user's signed auth entry covers their own execute_with_fee sub-tree
+  const userAuthEntries = ops.map(op =>
     xdr.SorobanAuthorizationEntry.fromXDR(Buffer.from(op.authEntryXdr, 'base64')),
   );
 
-  const simResult = await server.simulateTransaction(tx);
-  if ('error' in simResult) throw new Error(`Simulation error: ${(simResult as any).error}`);
+  // Attach signed auth entries BEFORE simulation → enforcement mode (not recording).
+  // Required for secp256r1 passkey auth and non-root auth (bundler → wallet → SAC).
+  const preTx = tx.toEnvelope();
+  preTx.v1().tx().operations()[0].body().invokeHostFunctionOp().auth(userAuthEntries);
+  const txWithAuth = new Transaction(preTx.toXDR('base64'), networkPassphrase);
 
-  const assembled = await server.prepareTransaction(tx);
-
-  const operations = assembled.toEnvelope().v1().tx().operations();
-  const batchOp = operations[operations.length - 1];
-  if (batchOp.body().value() instanceof xdr.InvokeHostFunctionOp) {
-    (batchOp.body().value() as xdr.InvokeHostFunctionOp).auth(authEntries);
+  const simResult = await server.simulateTransaction(txWithAuth);
+  if (rpc.Api.isSimulationError(simResult)) {
+    throw new Error(`Simulation error: ${simResult.error}`);
   }
 
-  assembled.sign(deployer);
+  // assembleTransaction merges fees + soroban resources from simulation.
+  // Use the original tx (clean base); re-attach auth after, as assemble overwrites it.
+  const assembled = rpc.assembleTransaction(tx, simResult).build();
+  const envelope = assembled.toEnvelope();
+  envelope.v1().tx().operations()[0].body().invokeHostFunctionOp().auth(userAuthEntries);
 
-  const feeBump = TransactionBuilder.buildFeeBumpTransaction(
-    deployer,
-    String(Math.ceil(Number(BASE_FEE) * 1.5 * (ops.length + deploymentOps.length + 1))),
-    assembled as unknown as Transaction,
-    networkPassphrase,
-  );
-  feeBump.sign(deployer);
+  const finalTx = new Transaction(envelope.toXDR('base64'), networkPassphrase);
+  finalTx.sign(deployer);
 
-  const result = await server.sendTransaction(feeBump);
+  const result = await server.sendTransaction(finalTx);
   if (result.status === 'ERROR') throw new Error(`Submit error: ${JSON.stringify(result.errorResult)}`);
 
   const txHash = result.hash;
