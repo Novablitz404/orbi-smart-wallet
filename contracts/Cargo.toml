@@ -3,7 +3,7 @@ members = ["smart_wallet", "bundler"]
 resolver = "2"
 
 [workspace.dependencies]
-soroban-sdk = { version = "21.0.0", features = ["alloc"] }
+soroban-sdk = { version = "26.0.1", features = ["alloc"] }
 
 [profile.release]
 opt-level = "z"
