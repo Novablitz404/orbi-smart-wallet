@@ -83,6 +83,14 @@ export async function markConfirmed(batchId: string, txHash: string): Promise<vo
     `UPDATE batches SET status = 'confirmed', tx_hash = $1 WHERE id = $2`,
     [txHash, batchId],
   );
+  // Bug 2: clear deployment debt for every wallet in this batch
+  await pool.query(
+    `UPDATE users SET deployment_fee_charged = true
+     WHERE wallet_address IN (
+       SELECT DISTINCT wallet_address FROM pending_ops WHERE batch_id = $1
+     ) AND deployment_fee_charged = false`,
+    [batchId],
+  );
 }
 
 export async function markFailed(batchId: string, reason?: string): Promise<void> {

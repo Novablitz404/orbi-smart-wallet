@@ -85,6 +85,16 @@ async function start() {
 
     ALTER TABLE users ADD COLUMN IF NOT EXISTS deployment_fee_stroops BIGINT NOT NULL DEFAULT 0;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS deployment_fee_charged BOOLEAN NOT NULL DEFAULT false;
+
+    CREATE TABLE IF NOT EXISTS quotes (
+      id UUID PRIMARY KEY,
+      wallet_address TEXT NOT NULL,
+      fee_stroops BIGINT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_quotes_wallet ON quotes(wallet_address);
   `);
   console.log('[relay] Migrations done.');
 

@@ -86,6 +86,13 @@ export async function simulateGasFee(params: SimulateParams): Promise<GasQuote> 
   const quoteId = crypto.randomUUID();
   const expiresAtLedger = ledger.sequence + QUOTE_VALIDITY_LEDGERS;
 
+  // Persist so bundle route can validate and look up the agreed fee
+  await pool.query(
+    `INSERT INTO quotes (id, wallet_address, fee_stroops, expires_at)
+     VALUES ($1, $2, $3, NOW() + INTERVAL '8 minutes')`,
+    [quoteId, walletAddress, totalFee],
+  );
+
   return {
     quoteId,
     feeStroops: totalFee,
