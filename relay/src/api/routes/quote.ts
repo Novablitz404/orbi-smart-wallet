@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { xdr } from '@stellar/stellar-sdk';
 import { simulateGasFee } from '../../lib/pricer';
 import { validateApiKey, extractBearerToken } from '../../lib/auth';
+import { buildCombinedAuthEntry } from '../../lib/authEntry';
+import { getBundlerContractId } from '../../lib/stellar';
 
 const router = Router();
 
@@ -22,7 +24,24 @@ router.post('/', async (req: Request, res: Response) => {
       xdr.ScVal.fromXDR(Buffer.from(a, 'base64'))
     );
     const quote = await simulateGasFee({ contractId, functionName, args, walletAddress });
-    return res.json(quote);
+
+    // Build unsigned combined auth entry — app signs it with one Face ID prompt
+    const entry = buildCombinedAuthEntry({
+      walletAddress,
+      bundlerContractId: getBundlerContractId(),
+      nativeSacId: quote.nativeSacId,
+      feeCollectorAddress: quote.feeCollectorAddress,
+      feeStroops: quote.feeStroops,
+      opContractId: contractId,
+      opFunctionName: functionName,
+      opArgs: args,
+      currentLedger: quote.currentLedger,
+    });
+
+    return res.json({
+      ...quote,
+      authEntryXdr: Buffer.from(entry.toXDR()).toString('base64'),
+    });
   } catch (err: any) {
     console.error('[quote]', err);
     return res.status(500).json({ error: err.message ?? 'Quote failed' });

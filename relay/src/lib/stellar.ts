@@ -1,4 +1,4 @@
-import { Keypair, Networks, rpc as StellarRpc } from '@stellar/stellar-sdk';
+import { Keypair, Networks, rpc as StellarRpc, Asset } from '@stellar/stellar-sdk';
 
 export type OrbiNetwork = 'testnet' | 'mainnet';
 
@@ -39,5 +39,15 @@ export function getDeployerKeypair(): Keypair {
 export function getBundlerContractId(): string {
   const id = process.env.BUNDLER_CONTRACT_ID;
   if (!id) throw new Error('BUNDLER_CONTRACT_ID env var not set');
+  return id;
+}
+
+export function getNativeSacId(): string {
+  return Asset.native().contractId(getPassphrase());
+}
+
+export function getFeeCollector(): string {
+  const id = process.env.FEE_COLLECTOR_ADDRESS;
+  if (!id) throw new Error('FEE_COLLECTOR_ADDRESS env var not set');
   return id;
 }

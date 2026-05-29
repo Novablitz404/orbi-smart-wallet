@@ -22,7 +22,9 @@ async function flush(): Promise<void> {
     const ops = await dequeuePending();
     if (ops.length < MIN_BATCH_SIZE) return;
 
-    const batch = ops.slice(0, MAX_BATCH_SIZE);
+    // Process one op per transaction — the combined auth entry (fee + op sub-invocations)
+    // is signed over the exact calls array, so cross-user batching would break auth.
+    const batch = ops.slice(0, 1);
     console.log(`[flush] Batching ${batch.length} ops`);
 
     batchId = await createBatch(batch.length);

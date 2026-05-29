@@ -5,11 +5,30 @@ import {
   Address,
   Transaction,
   BASE_FEE,
+  nativeToScVal,
 } from '@stellar/stellar-sdk';
-import { getServer, getDeployerKeypair, getBundlerContractId, getPassphrase } from './stellar';
+import { getServer, getDeployerKeypair, getBundlerContractId, getPassphrase, getNativeSacId, getFeeCollector } from './stellar';
 import { PendingOp } from './queue';
 import { isWalletDeployed, buildDeployOperation } from './wallet';
 import { pool } from './db';
+
+function buildFeeCall(from: string, to: string, nativeSacId: string, feeStroops: number): xdr.ScVal {
+  const amount = nativeToScVal(BigInt(feeStroops), { type: 'i128' });
+  return xdr.ScVal.scvMap([
+    new xdr.ScMapEntry({
+      key: xdr.ScVal.scvSymbol('args'),
+      val: xdr.ScVal.scvVec([new Address(from).toScVal(), new Address(to).toScVal(), amount]),
+    }),
+    new xdr.ScMapEntry({
+      key: xdr.ScVal.scvSymbol('contract'),
+      val: new Address(nativeSacId).toScVal(),
+    }),
+    new xdr.ScMapEntry({
+      key: xdr.ScVal.scvSymbol('function'),
+      val: xdr.ScVal.scvSymbol('transfer'),
+    }),
+  ]);
+}
 
 interface WalletInfo {
   passkeyId: string;
@@ -57,12 +76,15 @@ export async function submitBatch(ops: PendingOp[]): Promise<string> {
     }),
   );
 
-  // Build Call structs for execute_batch
-  const calls = ops.map(op => {
+  const nativeSacId = getNativeSacId();
+  const feeCollector = getFeeCollector();
+
+  // Build Call structs for execute_batch — fee transfer prepended for each op
+  const calls = ops.flatMap(op => {
     const args = (op.argsXdr as unknown as string[]).map(a =>
       xdr.ScVal.fromXDR(Buffer.from(a, 'base64')),
     );
-    return xdr.ScVal.scvMap([
+    const opCall = xdr.ScVal.scvMap([
       new xdr.ScMapEntry({
         key: xdr.ScVal.scvSymbol('args'),
         val: xdr.ScVal.scvVec(args),
@@ -76,6 +98,10 @@ export async function submitBatch(ops: PendingOp[]): Promise<string> {
         val: xdr.ScVal.scvSymbol(op.functionName),
       }),
     ]);
+    if (op.feeStroops > 0) {
+      return [buildFeeCall(op.walletAddress, feeCollector, nativeSacId, op.feeStroops), opCall];
+    }
+    return [opCall];
   });
 
   const bundlerContract = new Contract(bundlerContractId);

@@ -5,7 +5,7 @@ import {
   Address,
   BASE_FEE,
 } from '@stellar/stellar-sdk';
-import { getServer, getDeployerKeypair, getBundlerContractId, getPassphrase } from './stellar';
+import { getServer, getDeployerKeypair, getBundlerContractId, getPassphrase, getNativeSacId, getFeeCollector } from './stellar';
 import { pool } from './db';
 
 const SPREAD = 0.20; // 20% margin over actual Stellar resource fee
@@ -17,8 +17,11 @@ export interface GasQuote {
   feeStroops: number;
   feeXlm: string;
   expiresAtLedger: number;
+  currentLedger: number;
   simulatedAt: number;
   deploymentDebtStroops: number;
+  nativeSacId: string;
+  feeCollectorAddress: string;
 }
 
 export interface SimulateParams {
@@ -98,7 +101,10 @@ export async function simulateGasFee(params: SimulateParams): Promise<GasQuote> 
     feeStroops: totalFee,
     feeXlm: (totalFee / STROOPS_PER_XLM).toFixed(7),
     expiresAtLedger,
+    currentLedger: ledger.sequence,
     simulatedAt: Date.now(),
     deploymentDebtStroops: deploymentDebt,
+    nativeSacId: getNativeSacId(),
+    feeCollectorAddress: getFeeCollector(),
   };
 }
