@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../../lib/db';
-import { deriveWalletAddress } from '../../lib/wallet';
+import { deriveWalletAddress, deployWallet } from '../../lib/wallet';
 
 const router = Router();
 
@@ -36,10 +36,19 @@ router.post('/create', async (req: Request, res: Response) => {
   try {
     const walletAddress = deriveWalletAddress(Buffer.from(passkeyId, 'hex'));
 
+    // Deploy the wallet eagerly — deployer pays now, user repays on first send
+    console.log(`[wallet/create] Deploying ${walletAddress}`);
+    const { txHash, feeStroops } = await deployWallet(
+      Buffer.from(passkeyId, 'hex'),
+      Buffer.from(publicKey, 'hex'),
+      walletAddress,
+    );
+    console.log(`[wallet/create] Deployed ${walletAddress} tx=${txHash} fee=${feeStroops}`);
+
     await pool.query(
-      `INSERT INTO users (wallet_address, email, passkey_id, public_key)
-       VALUES ($1, $2, $3, $4)`,
-      [walletAddress, email.toLowerCase(), passkeyId, publicKey],
+      `INSERT INTO users (wallet_address, email, passkey_id, public_key, deployment_fee_stroops)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [walletAddress, email.toLowerCase(), passkeyId, publicKey, feeStroops],
     );
 
     return res.status(201).json({ walletAddress });

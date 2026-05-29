@@ -5,6 +5,8 @@ import {
   StrKey,
   Address,
   Operation,
+  TransactionBuilder,
+  BASE_FEE,
 } from '@stellar/stellar-sdk';
 import { getDeployerKeypair, getPassphrase, getServer } from './stellar';
 import { deriveGuardianAddress } from './guardian';
@@ -62,6 +64,54 @@ export async function isWalletDeployed(walletAddress: string): Promise<boolean> 
  * The constructor is called automatically with passkey + guardian args.
  * Paired with a fee-bump from the deployer — user pays nothing.
  */
+/**
+ * Deploy a smart wallet contract on-chain.
+ * Called eagerly at wallet creation time — deployer pays the fee.
+ * Returns the actual fee in stroops so the relay can recover it on first send.
+ */
+export async function deployWallet(
+  passkeyId: Buffer,
+  publicKey: Buffer,
+  walletAddress: string,
+): Promise<{ txHash: string; feeStroops: number }> {
+  const server = getServer();
+  const deployer = getDeployerKeypair();
+  const networkPassphrase = getPassphrase();
+
+  const deployOp = buildDeployOperation(passkeyId, publicKey, walletAddress);
+  const account = await server.getAccount(deployer.publicKey());
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase,
+  })
+    .addOperation(deployOp)
+    .setTimeout(300)
+    .build();
+
+  const simResult = await server.simulateTransaction(tx);
+  if ('error' in simResult) throw new Error(`Deploy simulation failed: ${(simResult as any).error}`);
+
+  const feeStroops = Number((simResult as any).minResourceFee ?? 0) + Number(BASE_FEE);
+
+  const prepared = await server.prepareTransaction(tx);
+  prepared.sign(deployer);
+
+  const submitted = await server.sendTransaction(prepared);
+  if (submitted.status === 'ERROR') {
+    throw new Error(`Deploy submit failed: ${JSON.stringify(submitted.errorResult)}`);
+  }
+
+  const txHash = submitted.hash;
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    const status = await server.getTransaction(txHash);
+    if (status.status === 'SUCCESS') return { txHash, feeStroops };
+    if (status.status === 'FAILED') throw new Error(`Deploy tx failed: ${txHash}`);
+  }
+  throw new Error(`Deploy tx timed out: ${txHash}`);
+}
+
 export function buildDeployOperation(
   passkeyId: Buffer,
   publicKey: Buffer,

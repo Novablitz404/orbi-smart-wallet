@@ -82,6 +82,9 @@ async function start() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS deployment_fee_stroops BIGINT NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS deployment_fee_charged BOOLEAN NOT NULL DEFAULT false;
   `);
   console.log('[relay] Migrations done.');
 

@@ -6,7 +6,7 @@ import { createPasskey } from '../../lib/passkey';
 import { createWallet } from '../../lib/relay';
 import { saveWallet } from '../../lib/storage';
 
-type Step = 'email' | 'passkey' | 'done';
+type Step = 'email' | 'passkey' | 'deploying' | 'done';
 
 export default function CreateWalletPage() {
   const router = useRouter();
@@ -23,6 +23,7 @@ export default function CreateWalletPage() {
 
     try {
       const credential = await createPasskey(email, email);
+      setStep('deploying');
       const { walletAddress } = await createWallet({
         passkeyId: credential.passkeyId,
         publicKey: credential.publicKey,
@@ -111,8 +112,25 @@ export default function CreateWalletPage() {
               disabled={loading}
               className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors disabled:opacity-50"
             >
-              {loading ? 'Creating wallet…' : 'Create with Face ID'}
+              {loading ? 'Preparing…' : 'Create with Face ID'}
             </button>
+          </div>
+        )}
+
+        {step === 'deploying' && (
+          <div className="flex flex-col items-center gap-6 py-8">
+            <div className="w-16 h-16 rounded-full bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
+              <svg className="animate-spin w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-white">Deploying your wallet</h2>
+              <p className="text-slate-400 text-sm mt-2">
+                Publishing your smart contract to Stellar.<br />This takes about 10 seconds.
+              </p>
+            </div>
           </div>
         )}
 
@@ -134,7 +152,7 @@ export default function CreateWalletPage() {
             </div>
 
             <p className="text-slate-500 text-xs text-center">
-              Your wallet will be deployed on-chain the first time you send a transaction.
+              Your wallet is live on Stellar. Send this address to receive XLM.
             </p>
 
             <button
