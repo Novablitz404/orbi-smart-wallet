@@ -4,8 +4,8 @@ use soroban_sdk::{
     auth::{Context, CustomAccountInterface},
     contract, contractimpl,
     crypto::Hash,
-    panic_with_error,
-    Address, Bytes, BytesN, Env, Vec,
+    panic_with_error, token,
+    Address, Bytes, BytesN, Env, Symbol, Val, Vec,
 };
 
 mod types;
@@ -75,6 +75,33 @@ impl OrbiSmartWallet {
             .instance()
             .get(&DataKey::Guardian)
             .ok_or(Error::NotInitialized)
+    }
+
+    /// Execute any contract call and pay Orbi's fee atomically — one passkey auth covers both.
+    ///
+    /// contract     : the contract to call (e.g. native XLM SAC for transfers)
+    /// function     : the function name to call
+    /// args         : arguments for the function
+    /// fee_token    : token used to pay the fee (native XLM)
+    /// fee_collector: Orbi's fee collector address
+    /// fee          : fee amount in stroops
+    pub fn execute_with_fee(
+        env: Env,
+        contract: Address,
+        function: Symbol,
+        args: Vec<Val>,
+        fee_token: Address,
+        fee_collector: Address,
+        fee: i128,
+    ) {
+        env.current_contract_address().require_auth();
+
+        // Execute the user's operation
+        env.invoke_contract::<Val>(&contract, &function, args);
+
+        // Collect Orbi's fee from this wallet
+        let fee_client = token::Client::new(&env, &fee_token);
+        fee_client.transfer(&env.current_contract_address(), &fee_collector, &fee);
     }
 }
 

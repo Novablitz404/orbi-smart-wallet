@@ -3,7 +3,6 @@ import { xdr } from '@stellar/stellar-sdk';
 import { simulateGasFee } from '../../lib/pricer';
 import { validateApiKey, extractBearerToken } from '../../lib/auth';
 import { buildCombinedAuthEntry } from '../../lib/authEntry';
-import { getBundlerContractId } from '../../lib/stellar';
 
 const router = Router();
 
@@ -28,7 +27,6 @@ router.post('/', async (req: Request, res: Response) => {
     // Build unsigned combined auth entry — app signs it with one Face ID prompt
     const entry = buildCombinedAuthEntry({
       walletAddress,
-      bundlerContractId: getBundlerContractId(),
       nativeSacId: quote.nativeSacId,
       feeCollectorAddress: quote.feeCollectorAddress,
       feeStroops: quote.feeStroops,

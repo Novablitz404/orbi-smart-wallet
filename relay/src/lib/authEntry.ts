@@ -8,18 +8,21 @@ import { randomBytes } from 'crypto';
 
 /**
  * Build a combined SorobanAuthorizationEntry for the user's smart wallet.
- * Covers both the Orbi fee transfer AND the user's operation as sub-invocations
- * under execute_batch — one auth hash, one passkey signature, one Face ID prompt.
+ *
+ * The root invocation is wallet.execute_with_fee(...) — specific to THIS user's
+ * wallet only. Multiple users can be batched freely because each user's auth entry
+ * is independent of other users' calls.
+ *
+ * One auth hash → one passkey signature → one Face ID prompt.
  *
  * Structure:
- *   rootInvocation: bundler.execute_batch([fee_call, op_call])
+ *   rootInvocation: wallet.execute_with_fee(op_contract, op_fn, op_args, fee_token, fee_collector, fee)
  *     subInvocations:
- *       - native_sac.transfer(wallet → orbi_collector, fee)
- *       - op_contract.op_fn(args)
+ *       - op_contract.op_fn(op_args)           ← user's operation
+ *       - fee_token.transfer(wallet → orbi, fee) ← Orbi fee
  */
 export function buildCombinedAuthEntry(params: {
   walletAddress: string;
-  bundlerContractId: string;
   nativeSacId: string;
   feeCollectorAddress: string;
   feeStroops: number;
@@ -29,35 +32,23 @@ export function buildCombinedAuthEntry(params: {
   currentLedger: number;
 }): xdr.SorobanAuthorizationEntry {
   const {
-    walletAddress, bundlerContractId, nativeSacId, feeCollectorAddress,
+    walletAddress, nativeSacId, feeCollectorAddress,
     feeStroops, opContractId, opFunctionName, opArgs, currentLedger,
   } = params;
 
   const feeAmount = nativeToScVal(BigInt(feeStroops), { type: 'i128' });
 
-  // ScVal representations matching exactly what batcher.ts builds for execute_batch
-  const feeCallScVal = xdr.ScVal.scvMap([
-    new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('args'), val: xdr.ScVal.scvVec([new Address(walletAddress).toScVal(), new Address(feeCollectorAddress).toScVal(), feeAmount]) }),
-    new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('contract'), val: new Address(nativeSacId).toScVal() }),
-    new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('function'), val: xdr.ScVal.scvSymbol('transfer') }),
-  ]);
-  const opCallScVal = xdr.ScVal.scvMap([
-    new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('args'), val: xdr.ScVal.scvVec(opArgs) }),
-    new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('contract'), val: new Address(opContractId).toScVal() }),
-    new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('function'), val: xdr.ScVal.scvSymbol(opFunctionName) }),
-  ]);
+  // Args for wallet.execute_with_fee(contract, function, args, fee_token, fee_collector, fee)
+  const executeWithFeeArgs = [
+    new Address(opContractId).toScVal(),
+    xdr.ScVal.scvSymbol(opFunctionName),
+    xdr.ScVal.scvVec(opArgs),
+    new Address(nativeSacId).toScVal(),
+    new Address(feeCollectorAddress).toScVal(),
+    feeAmount,
+  ];
 
-  // Sub-invocations for the auth tree
-  const feeSub = new xdr.SorobanAuthorizedInvocation({
-    function: xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeContractFn(
-      new xdr.InvokeContractArgs({
-        contractAddress: new Address(nativeSacId).toScAddress(),
-        functionName: Buffer.from('transfer'),
-        args: [new Address(walletAddress).toScVal(), new Address(feeCollectorAddress).toScVal(), feeAmount],
-      }),
-    ),
-    subInvocations: [],
-  });
+  // Sub-invocations: op call + fee transfer (both require wallet's require_auth)
   const opSub = new xdr.SorobanAuthorizedInvocation({
     function: xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeContractFn(
       new xdr.InvokeContractArgs({
@@ -69,7 +60,21 @@ export function buildCombinedAuthEntry(params: {
     subInvocations: [],
   });
 
-  // Long is required for int64 nonce — Long is a transitive dep of stellar-sdk
+  const feeSub = new xdr.SorobanAuthorizedInvocation({
+    function: xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeContractFn(
+      new xdr.InvokeContractArgs({
+        contractAddress: new Address(nativeSacId).toScAddress(),
+        functionName: Buffer.from('transfer'),
+        args: [
+          new Address(walletAddress).toScVal(),
+          new Address(feeCollectorAddress).toScVal(),
+          feeAmount,
+        ],
+      }),
+    ),
+    subInvocations: [],
+  });
+
   const nonceBytes = randomBytes(8);
   const nonce = Long.fromBits(nonceBytes.readInt32BE(4), nonceBytes.readInt32BE(0), false);
 
@@ -85,12 +90,12 @@ export function buildCombinedAuthEntry(params: {
     rootInvocation: new xdr.SorobanAuthorizedInvocation({
       function: xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeContractFn(
         new xdr.InvokeContractArgs({
-          contractAddress: new Address(bundlerContractId).toScAddress(),
-          functionName: Buffer.from('execute_batch'),
-          args: [xdr.ScVal.scvVec([feeCallScVal, opCallScVal])],
+          contractAddress: new Address(walletAddress).toScAddress(),
+          functionName: Buffer.from('execute_with_fee'),
+          args: executeWithFeeArgs,
         }),
       ),
-      subInvocations: [feeSub, opSub],
+      subInvocations: [opSub, feeSub],
     }),
   });
 }

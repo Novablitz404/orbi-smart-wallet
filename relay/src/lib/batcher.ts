@@ -12,20 +12,35 @@ import { PendingOp } from './queue';
 import { isWalletDeployed, buildDeployOperation } from './wallet';
 import { pool } from './db';
 
-function buildFeeCall(from: string, to: string, nativeSacId: string, feeStroops: number): xdr.ScVal {
-  const amount = nativeToScVal(BigInt(feeStroops), { type: 'i128' });
+function buildExecuteWithFeeCall(
+  walletAddress: string,
+  opContractId: string,
+  opFunctionName: string,
+  opArgs: xdr.ScVal[],
+  nativeSacId: string,
+  feeCollector: string,
+  feeStroops: number,
+): xdr.ScVal {
+  const feeAmount = nativeToScVal(BigInt(feeStroops), { type: 'i128' });
   return xdr.ScVal.scvMap([
     new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol('args'),
-      val: xdr.ScVal.scvVec([new Address(from).toScVal(), new Address(to).toScVal(), amount]),
+      val: xdr.ScVal.scvVec([
+        new Address(opContractId).toScVal(),
+        xdr.ScVal.scvSymbol(opFunctionName),
+        xdr.ScVal.scvVec(opArgs),
+        new Address(nativeSacId).toScVal(),
+        new Address(feeCollector).toScVal(),
+        feeAmount,
+      ]),
     }),
     new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol('contract'),
-      val: new Address(nativeSacId).toScVal(),
+      val: new Address(walletAddress).toScVal(),
     }),
     new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol('function'),
-      val: xdr.ScVal.scvSymbol('transfer'),
+      val: xdr.ScVal.scvSymbol('execute_with_fee'),
     }),
   ]);
 }
@@ -79,29 +94,21 @@ export async function submitBatch(ops: PendingOp[]): Promise<string> {
   const nativeSacId = getNativeSacId();
   const feeCollector = getFeeCollector();
 
-  // Build Call structs for execute_batch — fee transfer prepended for each op
-  const calls = ops.flatMap(op => {
-    const args = (op.argsXdr as unknown as string[]).map(a =>
+  // Each op becomes a single wallet.execute_with_fee(...) call
+  // Fee + op handled atomically inside the wallet — multi-user batching works
+  const calls = ops.map(op => {
+    const opArgs = (op.argsXdr as unknown as string[]).map(a =>
       xdr.ScVal.fromXDR(Buffer.from(a, 'base64')),
     );
-    const opCall = xdr.ScVal.scvMap([
-      new xdr.ScMapEntry({
-        key: xdr.ScVal.scvSymbol('args'),
-        val: xdr.ScVal.scvVec(args),
-      }),
-      new xdr.ScMapEntry({
-        key: xdr.ScVal.scvSymbol('contract'),
-        val: new Address(op.contractId).toScVal(),
-      }),
-      new xdr.ScMapEntry({
-        key: xdr.ScVal.scvSymbol('function'),
-        val: xdr.ScVal.scvSymbol(op.functionName),
-      }),
-    ]);
-    if (op.feeStroops > 0) {
-      return [buildFeeCall(op.walletAddress, feeCollector, nativeSacId, op.feeStroops), opCall];
-    }
-    return [opCall];
+    return buildExecuteWithFeeCall(
+      op.walletAddress,
+      op.contractId,
+      op.functionName,
+      opArgs,
+      nativeSacId,
+      feeCollector,
+      op.feeStroops,
+    );
   });
 
   const bundlerContract = new Contract(bundlerContractId);
