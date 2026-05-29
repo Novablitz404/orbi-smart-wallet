@@ -1,0 +1,22 @@
+{
+  "name": "@orbi/sdk",
+  "version": "0.0.1",
+  "description": "Orbi Smart Wallet SDK — connect any dApp to Orbi gasless transactions",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^15.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.2",
+    "typescript": "^5.5.2"
+  },
+  "peerDependencies": {
+    "@stellar/stellar-sdk": "^15.1.0"
+  }
+}

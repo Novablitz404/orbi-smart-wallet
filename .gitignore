@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment secrets — never commit
+.env
+**/.env
+relay/.env
+app/.env.local
+
+# Next.js
+app/.next/
+app/out/
+
+# TypeScript build output
+relay/dist/
+sdk/dist/
+
+# Rust build artifacts
+contracts/target/
+
+# Compiled wasm (reproducible via build.sh)
+contracts/smart_wallet/orbi_smart_wallet.wasm
+contracts/bundler/orbi_bundler.wasm
+
+# OS
+.DS_Store
