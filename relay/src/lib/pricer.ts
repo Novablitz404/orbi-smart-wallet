@@ -4,6 +4,7 @@ import {
   xdr,
   Address,
   BASE_FEE,
+  nativeToScVal,
 } from '@stellar/stellar-sdk';
 import { getServer, getDeployerKeypair, getBundlerContractId, getPassphrase, getNativeSacId, getFeeCollector } from './stellar';
 import { pool } from './db';
@@ -40,19 +41,32 @@ export async function simulateGasFee(params: SimulateParams): Promise<GasQuote> 
   const account = await server.getAccount(deployer.publicKey());
   const ledger = await server.getLatestLedger();
 
-  // Build execute_batch call with a single op for simulation
+  const nativeSacId = getNativeSacId();
+  const feeCollector = getFeeCollector();
+
+  // Simulate wallet.execute_with_fee(...) so the wallet is in the call chain.
+  // This lets Soroban's auth recording work correctly — the wallet contract
+  // is an ancestor of the nested SAC transfer, so require_auth() is valid.
+  // Fee is 0 for simulation — only resource cost matters.
   const call = xdr.ScVal.scvMap([
     new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol('args'),
-      val: xdr.ScVal.scvVec(args),
+      val: xdr.ScVal.scvVec([
+        new Address(contractId).toScVal(),
+        xdr.ScVal.scvSymbol(functionName),
+        xdr.ScVal.scvVec(args),
+        new Address(nativeSacId).toScVal(),
+        new Address(feeCollector).toScVal(),
+        nativeToScVal(0n, { type: 'i128' }),
+      ]),
     }),
     new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol('contract'),
-      val: new Address(contractId).toScVal(),
+      val: new Address(walletAddress).toScVal(),
     }),
     new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol('function'),
-      val: xdr.ScVal.scvSymbol(functionName),
+      val: xdr.ScVal.scvSymbol('execute_with_fee'),
     }),
   ]);
 
