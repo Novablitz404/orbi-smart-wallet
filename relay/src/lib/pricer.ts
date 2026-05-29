@@ -4,9 +4,8 @@ import {
   xdr,
   Address,
   BASE_FEE,
-  nativeToScVal,
 } from '@stellar/stellar-sdk';
-import { getServer, getDeployerKeypair, getBundlerContractId, getPassphrase, getNativeSacId, getFeeCollector } from './stellar';
+import { getServer, getDeployerKeypair, getPassphrase, getNativeSacId, getFeeCollector } from './stellar';
 import { pool } from './db';
 
 const SPREAD = 0.20; // 20% margin over actual Stellar resource fee
@@ -36,48 +35,26 @@ export async function simulateGasFee(params: SimulateParams): Promise<GasQuote> 
   const { contractId, functionName, args, walletAddress } = params;
   const server = getServer();
   const deployer = getDeployerKeypair();
-  const bundlerContractId = getBundlerContractId();
 
   const account = await server.getAccount(deployer.publicKey());
   const ledger = await server.getLatestLedger();
 
   const nativeSacId = getNativeSacId();
-  const feeCollector = getFeeCollector();
 
-  // Simulate wallet.execute_with_fee(...) so the wallet is in the call chain.
-  // This lets Soroban's auth recording work correctly — the wallet contract
-  // is an ancestor of the nested SAC transfer, so require_auth() is valid.
-  // Fee is 0 for simulation — only resource cost matters.
-  const call = xdr.ScVal.scvMap([
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('args'),
-      val: xdr.ScVal.scvVec([
-        new Address(contractId).toScVal(),
-        xdr.ScVal.scvSymbol(functionName),
-        xdr.ScVal.scvVec(args),
-        new Address(nativeSacId).toScVal(),
-        new Address(feeCollector).toScVal(),
-        nativeToScVal(0n, { type: 'i128' }),
-      ]),
-    }),
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('contract'),
-      val: new Address(walletAddress).toScVal(),
-    }),
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('function'),
-      val: xdr.ScVal.scvSymbol('execute_with_fee'),
-    }),
-  ]);
+  // Soroban recording mode can't simulate custom account require_auth() when the
+  // wallet isn't the root invocation. Instead simulate the inner op directly from
+  // the deployer (no wallet auth needed), then apply a 3x multiplier for the
+  // execute_batch + execute_with_fee + fee collection wrapper overhead.
+  const simArgs = functionName === 'transfer' && args.length >= 1
+    ? [new Address(deployer.publicKey()).toScVal(), ...args.slice(1)]
+    : args;
 
-  const bundlerContract = new Contract(bundlerContractId);
+  const innerContract = new Contract(contractId === nativeSacId ? nativeSacId : contractId);
   const tx = new TransactionBuilder(account, {
     fee: BASE_FEE,
     networkPassphrase: getPassphrase(),
   })
-    .addOperation(
-      bundlerContract.call('execute_batch', xdr.ScVal.scvVec([call]))
-    )
+    .addOperation(innerContract.call(functionName, ...simArgs))
     .setTimeout(300)
     .build();
 
@@ -89,7 +66,8 @@ export async function simulateGasFee(params: SimulateParams): Promise<GasQuote> 
 
   const minResourceFee = Number((simResult as any).minResourceFee ?? 0);
   const baseFee = Number(BASE_FEE);
-  const txFee = Math.ceil((minResourceFee + baseFee) * (1 + SPREAD));
+  // 3x multiplier: accounts for execute_batch + execute_with_fee + fee transfer overhead
+  const txFee = Math.ceil((minResourceFee * 3 + baseFee) * (1 + SPREAD));
 
   // Add unpaid deployment cost to the first send
   const { rows } = await pool.query(
