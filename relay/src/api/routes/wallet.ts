@@ -5,6 +5,21 @@ import { deriveWalletAddress, deployWallet } from '../../lib/wallet';
 const router = Router();
 
 /**
+ * GET /v1/wallet/check-email?email=...
+ * Returns { available: true } if the email is not yet registered.
+ */
+router.get('/check-email', async (req: Request, res: Response) => {
+  const email = (req.query.email as string | undefined)?.toLowerCase().trim();
+  if (!email) return res.status(400).json({ error: 'email required' });
+
+  const { rows } = await pool.query(
+    `SELECT 1 FROM users WHERE email = $1 LIMIT 1`,
+    [email],
+  );
+  return res.json({ available: rows.length === 0 });
+});
+
+/**
  * POST /v1/wallet/address
  * Returns the deterministic C-address for a passkey ID.
  * No deployment — safe to call before any transaction.
