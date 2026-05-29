@@ -4,6 +4,7 @@ import {
   xdr,
   Address,
   BASE_FEE,
+  nativeToScVal,
 } from '@stellar/stellar-sdk';
 import { getServer, getDeployerKeypair, getPassphrase, getNativeSacId, getFeeCollector } from './stellar';
 import { pool } from './db';
@@ -42,14 +43,25 @@ export async function simulateGasFee(params: SimulateParams): Promise<GasQuote> 
   const nativeSacId = getNativeSacId();
 
   // Soroban recording mode can't simulate custom account require_auth() when the
-  // wallet isn't the root invocation. Instead simulate the inner op directly from
-  // the deployer (no wallet auth needed), then apply a 3x multiplier for the
-  // execute_batch + execute_with_fee + fee collection wrapper overhead.
-  const simArgs = functionName === 'transfer' && args.length >= 1
-    ? [new Address(deployer.publicKey()).toScVal(), ...args.slice(1)]
-    : args;
+  // wallet isn't the root invocation. Simulate the inner op directly from the
+  // deployer using freshly-built args (avoids Long/Hyper XDR re-serialization bugs),
+  // then apply a 3x multiplier for execute_batch + execute_with_fee + fee overhead.
+  //
+  // For transfer ops: rebuild as transfer(deployer, to, amount) with a fixed 1-stroop
+  // amount — resource cost doesn't depend on the transfer amount.
+  let simArgs: xdr.ScVal[];
+  if (functionName === 'transfer') {
+    const to = args[1] ?? new Address(deployer.publicKey()).toScVal();
+    simArgs = [
+      new Address(deployer.publicKey()).toScVal(),
+      to,
+      nativeToScVal(1n, { type: 'i128' }),
+    ];
+  } else {
+    simArgs = args;
+  }
 
-  const innerContract = new Contract(contractId === nativeSacId ? nativeSacId : contractId);
+  const innerContract = new Contract(contractId);
   const tx = new TransactionBuilder(account, {
     fee: BASE_FEE,
     networkPassphrase: getPassphrase(),
