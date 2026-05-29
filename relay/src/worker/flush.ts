@@ -1,10 +1,4 @@
-import {
-  dequeuePending,
-  markBatched,
-  markConfirmed,
-  markFailed,
-  createBatch,
-} from '../lib/queue';
+import { dequeuePending } from '../lib/queue';
 import { submitBatch } from '../lib/batcher';
 
 const FLUSH_INTERVAL_MS = 5000;
@@ -17,24 +11,18 @@ async function flush(): Promise<void> {
   if (isFlushing) return;
   isFlushing = true;
 
-  let batchId: string | null = null;
   try {
     const ops = await dequeuePending();
     if (ops.length < MIN_BATCH_SIZE) return;
 
     const batch = ops.slice(0, MAX_BATCH_SIZE);
-    console.log(`[flush] Batching ${batch.length} ops`);
+    console.log(`[flush] Processing ${batch.length} ops`);
 
-    batchId = await createBatch(batch.length);
-    await markBatched(batch.map(op => op.id), batchId);
-
-    const txHash = await submitBatch(batch);
-
-    await markConfirmed(batchId, txHash);
-    console.log(`[flush] Confirmed batch ${batchId} → ${txHash}`);
+    // submitBatch handles batch creation, adaptive splitting on resource errors,
+    // and confirmation — no manual batch management needed here
+    await submitBatch(batch);
   } catch (err) {
     console.error('[flush] Error:', err);
-    if (batchId) await markFailed(batchId, String(err)).catch(console.error);
   } finally {
     isFlushing = false;
   }
