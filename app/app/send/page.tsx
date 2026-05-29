@@ -59,7 +59,7 @@ export default function SendPage() {
 
       const res = await fetch(`${RELAY_URL}/v1/quote`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer dev' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           walletAddress: wallet.walletAddress,
           contractId: nativeSacId,
@@ -105,7 +105,7 @@ export default function SendPage() {
 
       const res = await fetch(`${RELAY_URL}/v1/bundle`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer dev' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           walletAddress: wallet.walletAddress,
           quoteId: quote.quoteId,
