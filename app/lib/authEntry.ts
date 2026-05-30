@@ -10,6 +10,7 @@ import {
   xdr,
   Address,
   Networks,
+  hash,
 } from '@stellar/stellar-sdk';
 import { signWithPasskey, base64urlToBuffer, bufferToHex, bufferToBase64url } from './passkey';
 
@@ -23,23 +24,28 @@ const NETWORK_PASSPHRASE =
 /**
  * Compute the 32-byte Soroban auth hash that the passkey must sign as the challenge.
  * SHA-256(HashIdPreimage.envelopeTypeSorobanAuthorization(...))
+ *
+ * Uses stellar-sdk's synchronous hash() (sha.js) — matching PasskeyKit. The
+ * previous crypto.subtle approach hashed `data.buffer`, which for a Buffer that
+ * is a view into a pooled ArrayBuffer includes trailing bytes → wrong hash →
+ * __check_auth ClientDataJsonChallengeIncorrect (Error #6).
  */
-export async function computeAuthHash(
+export function computeAuthHash(
   entry: xdr.SorobanAuthorizationEntry,
-): Promise<Uint8Array> {
-  const networkId = await sha256(new TextEncoder().encode(NETWORK_PASSPHRASE));
+): Uint8Array {
+  const networkId = hash(Buffer.from(NETWORK_PASSPHRASE));
   const creds = entry.credentials().address();
 
   const preimage = xdr.HashIdPreimage.envelopeTypeSorobanAuthorization(
     new xdr.HashIdPreimageSorobanAuthorization({
-      networkId: Buffer.from(networkId),
+      networkId,
       nonce: creds.nonce(),
       signatureExpirationLedger: creds.signatureExpirationLedger(),
       invocation: entry.rootInvocation(),
     }),
   );
 
-  return sha256(preimage.toXDR());
+  return hash(preimage.toXDR());
 }
 
 // ── Signature ScVal builder ───────────────────────────────────────────────────
@@ -121,7 +127,7 @@ export async function signAuthEntryWithPasskey(params: {
   // Set expiration to current ledger + 1000 (~83 minutes)
   entry.credentials().address().signatureExpirationLedger(currentLedger + 1000);
 
-  const authHash = await computeAuthHash(entry);
+  const authHash = computeAuthHash(entry);
 
   // Passkey signs the auth hash as the WebAuthn challenge.
   // credentialId selects which platform credential to use (allowCredentials).
@@ -152,11 +158,6 @@ export async function signAuthEntryWithPasskey(params: {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-async function sha256(data: Uint8Array | ArrayBuffer): Promise<Uint8Array> {
-  const buf = data instanceof Uint8Array ? data.buffer as ArrayBuffer : data;
-  return new Uint8Array(await crypto.subtle.digest('SHA-256', buf));
-}
 
 function hexToBuffer(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
