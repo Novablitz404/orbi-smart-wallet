@@ -51,9 +51,10 @@ export default function DashboardPage() {
           </div>
           <span className="text-white font-semibold">Orbi</span>
         </div>
-        <button onClick={signOut} className="text-slate-500 hover:text-slate-300 text-sm transition-colors">
-          Sign out
-        </button>
+        <div className="flex items-center gap-3">
+          <a href="/settings" className="text-slate-500 hover:text-slate-300 text-sm transition-colors">Settings</a>
+          <button onClick={signOut} className="text-slate-500 hover:text-slate-300 text-sm transition-colors">Sign out</button>
+        </div>
       </div>
 
       {/* Balance card */}

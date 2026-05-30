@@ -8,24 +8,12 @@ const RELAY_URL = process.env.NEXT_PUBLIC_RELAY_URL;
 
 type Step = 'loading' | 'connect' | 'connecting' | 'done' | 'error';
 
-/**
- * keys.orbiwallet.xyz/connect
- *
- * Opened as a popup by dApps via the @orbi/sdk.
- * URL params:
- *   origin   — the dApp's origin (for display)
- *   channelId — BroadcastChannel name to send the result back
- *
- * Flow:
- *   1. User taps "Connect with Face ID"
- *   2. Passkey auth → derive passkeyId → relay lookup → get wallet address
- *   3. Post { type: 'orbi_connected', address } to opener via postMessage + BroadcastChannel
- *   4. Popup closes
- */
 export default function ConnectPage() {
   const [step, setStep] = useState<Step>('loading');
   const [origin, setOrigin] = useState('');
+  const [appName, setAppName] = useState('');
   const [channelId, setChannelId] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -35,33 +23,45 @@ export default function ConnectPage() {
     setOrigin(o);
     setChannelId(c);
 
+    try {
+      const hostname = new URL(o).hostname;
+      setAppName(hostname);
+    } catch {
+      setAppName(o);
+    }
+
     // Already signed in — auto-connect
     const existing = loadWallet();
     if (existing) {
-      sendResult(existing.walletAddress, c);
-      setStep('done');
+      grantAndSend(existing.walletAddress, o, c);
       return;
     }
 
     setStep('connect');
   }, []);
 
-  function sendResult(address: string, channel: string) {
-    const msg = { type: 'orbi_connected', address };
+  async function grantAndSend(address: string, o: string, c: string) {
+    setWalletAddress(address);
 
-    // Primary: BroadcastChannel (works even with COOP headers)
-    if (channel) {
-      const bc = new BroadcastChannel(channel);
+    // Save the permission
+    if (o) {
+      await fetch(`${RELAY_URL}/v1/connections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: address, origin: o, appName }),
+      }).catch(() => {/* non-fatal */});
+    }
+
+    const msg = { type: 'orbi_connected', address };
+    if (c) {
+      const bc = new BroadcastChannel(c);
       bc.postMessage(msg);
       bc.close();
     }
+    try { if (window.opener) window.opener.postMessage(msg, '*'); } catch { /* COOP */ }
 
-    // Fallback: postMessage to opener
-    try {
-      if (window.opener) window.opener.postMessage(msg, '*');
-    } catch { /* COOP may block this */ }
-
-    setTimeout(() => window.close(), 500);
+    setStep('done');
+    setTimeout(() => window.close(), 1000);
   }
 
   async function handleConnect() {
@@ -77,25 +77,21 @@ export default function ConnectPage() {
         body: JSON.stringify({ passkeyId }),
       });
 
-      if (!res.ok) throw new Error('Wallet not found. Create one at account.orbiwallet.xyz');
-      const { walletAddress, email } = await res.json() as { walletAddress: string; email: string };
+      if (!res.ok) throw new Error('Wallet not found — create one at account.orbiwallet.xyz');
+      const { walletAddress: addr, email } = await res.json() as { walletAddress: string; email: string };
+      saveWallet({ walletAddress: addr, credentialId, passkeyId, email });
 
-      saveWallet({ walletAddress, credentialId, passkeyId, email });
-      sendResult(walletAddress, channelId);
-      setStep('done');
+      await grantAndSend(addr, origin, channelId);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Connection failed');
       setStep('error');
     }
   }
 
-  const appName = origin ? new URL(origin).hostname : 'this app';
-
   return (
     <main className="flex flex-col items-center justify-center min-h-screen px-6 bg-[#020817]">
       <div className="w-full max-w-sm flex flex-col items-center gap-6">
 
-        {/* Orbi logo */}
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
           <span className="text-white text-xl font-bold">O</span>
         </div>
@@ -107,32 +103,34 @@ export default function ConnectPage() {
         {step === 'connect' && (
           <>
             <div className="text-center">
-              <h1 className="text-xl font-bold text-white">Connect to {appName}</h1>
-              <p className="text-slate-400 text-sm mt-2">
-                Sign in with Face ID to connect your Orbi wallet.
-              </p>
+              <h1 className="text-xl font-bold text-white">Sign into {appName}</h1>
+              <p className="text-slate-400 text-sm mt-1">By continuing, you allow {appName} to:</p>
             </div>
 
-            <div className="w-full rounded-2xl bg-slate-800/50 border border-slate-700 p-4 flex flex-col gap-3 text-sm">
-              <p className="text-slate-400">This will allow <span className="text-white">{appName}</span> to:</p>
-              <div className="flex items-center gap-2 text-slate-300">
-                <span>✓</span> See your wallet address
-              </div>
-              <div className="flex items-center gap-2 text-slate-300">
-                <span>✓</span> Request transaction signatures
-              </div>
+            <div className="w-full rounded-2xl bg-slate-800/50 border border-slate-700 p-4 flex flex-col gap-3">
+              {[
+                { icon: '👤', label: 'See your wallet address' },
+                { icon: '📊', label: 'Access your balances and activity' },
+                { icon: '🔄', label: 'Send you transaction requests' },
+              ].map(({ icon, label }) => (
+                <div key={label} className="flex items-center gap-3">
+                  <span className="text-lg">{icon}</span>
+                  <span className="text-slate-300 text-sm">{label}</span>
+                </div>
+              ))}
             </div>
 
-            <button
-              onClick={handleConnect}
-              className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors"
-            >
-              Connect with Face ID
-            </button>
-
-            <button onClick={() => window.close()} className="text-slate-500 text-sm hover:text-slate-300">
-              Cancel
-            </button>
+            <div className="w-full flex flex-col gap-3">
+              <button
+                onClick={handleConnect}
+                className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors"
+              >
+                Continue with Face ID
+              </button>
+              <button onClick={() => window.close()} className="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors">
+                Cancel
+              </button>
+            </div>
           </>
         )}
 
@@ -153,20 +151,17 @@ export default function ConnectPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <p className="text-white font-semibold">Connected!</p>
-            <p className="text-slate-500 text-xs">You can close this window.</p>
+            <p className="text-white font-semibold">Connected to {appName}!</p>
+            <p className="text-slate-500 text-xs font-mono">{walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}</p>
+            <p className="text-slate-600 text-xs">Closing…</p>
           </>
         )}
 
         {step === 'error' && (
           <>
             <p className="text-red-400 text-sm text-center">{error}</p>
-            <button onClick={() => setStep('connect')} className="text-blue-400 text-sm hover:underline">
-              Try again
-            </button>
-            <button onClick={() => window.close()} className="text-slate-500 text-sm hover:text-slate-300">
-              Cancel
-            </button>
+            <button onClick={() => setStep('connect')} className="text-blue-400 text-sm hover:underline">Try again</button>
+            <button onClick={() => window.close()} className="text-slate-500 text-sm">Cancel</button>
           </>
         )}
       </div>

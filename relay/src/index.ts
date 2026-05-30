@@ -9,6 +9,7 @@ import statusRouter from './api/routes/status';
 import accountRouter from './api/routes/account';
 import recoveryRouter from './api/routes/recovery';
 import walletRouter from './api/routes/wallet';
+import connectionsRouter from './api/routes/connections';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use('/v1/status', statusRouter);
 app.use('/v1/account', accountRouter);
 app.use('/v1/recovery', recoveryRouter);
 app.use('/v1/wallet', walletRouter);
+app.use('/v1/connections', connectionsRouter);
 
 app.get('/health', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
 
@@ -85,6 +87,17 @@ async function start() {
 
     ALTER TABLE users ADD COLUMN IF NOT EXISTS deployment_fee_stroops BIGINT NOT NULL DEFAULT 0;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS deployment_fee_charged BOOLEAN NOT NULL DEFAULT false;
+
+    CREATE TABLE IF NOT EXISTS dapp_connections (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      wallet_address TEXT NOT NULL,
+      origin TEXT NOT NULL,
+      app_name TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      revoked_at TIMESTAMPTZ,
+      UNIQUE(wallet_address, origin)
+    );
+    CREATE INDEX IF NOT EXISTS idx_connections_wallet ON dapp_connections(wallet_address);
 
     CREATE TABLE IF NOT EXISTS quotes (
       id UUID PRIMARY KEY,

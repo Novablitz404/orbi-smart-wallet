@@ -42,6 +42,7 @@ interface SignRequest {
 export default function SignPage() {
   const [step, setStep] = useState<Step>('loading');
   const [req, setReq] = useState<SignRequest | null>(null);
+  const [trusted, setTrusted] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -62,6 +63,15 @@ export default function SignPage() {
     }
 
     setReq(r);
+
+    // Check if this dApp has previously been granted permission
+    if (r.walletAddress && r.origin) {
+      fetch(`${RELAY_URL}/v1/connections/check?walletAddress=${r.walletAddress}&origin=${encodeURIComponent(r.origin)}`)
+        .then(res => res.json())
+        .then((d: { connected?: boolean }) => setTrusted(d.connected ?? false))
+        .catch(() => setTrusted(false));
+    }
+
     setStep('review');
   }, []);
 
@@ -166,6 +176,16 @@ export default function SignPage() {
             <div className="text-center">
               <h1 className="text-xl font-bold text-white">Approve Transaction</h1>
               <p className="text-slate-400 text-sm mt-1">{appName} is requesting your signature</p>
+              {!trusted && (
+                <p className="mt-2 text-xs text-yellow-500/80 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-1.5">
+                  ⚠ New connection — {appName} hasn't connected before
+                </p>
+              )}
+              {trusted && (
+                <p className="mt-2 text-xs text-green-500/80 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-1.5">
+                  ✓ Trusted — you've connected to {appName} before
+                </p>
+              )}
             </div>
 
             <div className="w-full rounded-2xl bg-slate-800/50 border border-slate-700 p-4 flex flex-col gap-3 text-sm">
