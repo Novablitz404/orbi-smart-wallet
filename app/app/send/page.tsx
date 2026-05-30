@@ -11,7 +11,7 @@ const STROOPS_PER_XLM = 10_000_000;
 const NETWORK_PASSPHRASE =
   process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet' ? Networks.PUBLIC : Networks.TESTNET;
 
-type Step = 'form' | 'quoting' | 'confirm' | 'signing' | 'submitted' | 'error';
+type Step = 'form' | 'quoting' | 'confirm' | 'signing' | 'confirming' | 'confirmed' | 'failed' | 'error';
 
 interface Quote {
   quoteId: string;
@@ -29,6 +29,7 @@ export default function SendPage() {
   const [amount, setAmount] = useState('');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [opId, setOpId] = useState('');
+  const [txHash, setTxHash] = useState('');
   const [error, setError] = useState('');
   const [wallet, setWallet] = useState<ReturnType<typeof loadWallet>>(null);
 
@@ -126,7 +127,27 @@ export default function SendPage() {
 
       const { opId: id } = await res.json() as { opId: string };
       setOpId(id);
-      setStep('submitted');
+      setStep('confirming');
+
+      // Poll for on-chain confirmation
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const statusRes = await fetch(`${RELAY_URL}/v1/status/${id}`);
+        if (!statusRes.ok) continue;
+        const { status, txHash: hash } = await statusRes.json() as { status: string; txHash: string | null };
+        if (status === 'confirmed' && hash) {
+          setTxHash(hash);
+          setStep('confirmed');
+          return;
+        }
+        if (status === 'failed') {
+          setError('Transaction failed on-chain');
+          setStep('failed');
+          return;
+        }
+      }
+      setError('Timed out waiting for confirmation');
+      setStep('failed');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Send failed');
       setStep('error');
@@ -213,23 +234,50 @@ export default function SendPage() {
         </div>
       )}
 
-      {step === 'submitted' && (
+      {step === 'confirming' && (
+        <div className="flex flex-col items-center gap-4 py-16">
+          <svg className="animate-spin w-10 h-10 text-blue-400" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          <p className="text-white font-semibold">Confirming on Stellar…</p>
+          <p className="text-slate-400 text-sm text-center">Usually takes 5–10 seconds</p>
+        </div>
+      )}
+
+      {step === 'confirmed' && (
         <div className="flex flex-col items-center gap-4 py-16">
           <div className="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center">
             <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-white">Submitted!</h2>
-          <p className="text-slate-400 text-sm text-center">
-            Your transaction is being processed.<br />
-            <span className="font-mono text-xs text-slate-500 break-all">{opId}</span>
-          </p>
+          <h2 className="text-xl font-bold text-white">Confirmed!</h2>
+          <a
+            href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 text-xs font-mono break-all text-center hover:underline"
+          >
+            {txHash.slice(0, 16)}…{txHash.slice(-8)} ↗
+          </a>
           <button
             onClick={() => router.push('/dashboard')}
             className="mt-4 w-full max-w-xs py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors"
           >
             Back to Dashboard
+          </button>
+        </div>
+      )}
+
+      {step === 'failed' && (
+        <div className="flex flex-col items-center gap-4 py-16">
+          <p className="text-red-400 text-sm text-center">{error}</p>
+          <button
+            onClick={() => { setStep('form'); setQuote(null); setError(''); }}
+            className="text-blue-400 text-sm hover:underline"
+          >
+            Try again
           </button>
         </div>
       )}
