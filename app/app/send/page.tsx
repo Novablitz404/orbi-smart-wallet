@@ -100,6 +100,7 @@ export default function SendPage() {
         entry,
         args,
         credentialId: wallet.credentialId,
+        passkeyId: wallet.passkeyId,
         currentLedger: quote.currentLedger,
       });
 

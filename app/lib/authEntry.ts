@@ -113,25 +113,30 @@ export async function signAuthEntryWithPasskey(params: {
   entry: xdr.SorobanAuthorizationEntry;
   args: xdr.ScVal[];
   credentialId: string;
+  passkeyId: string;
   currentLedger: number;
 }): Promise<SignedAuthEntry> {
-  const { entry, args, credentialId, currentLedger } = params;
+  const { entry, args, credentialId, passkeyId, currentLedger } = params;
 
   // Set expiration to current ledger + 1000 (~83 minutes)
   entry.credentials().address().signatureExpirationLedger(currentLedger + 1000);
 
   const authHash = await computeAuthHash(entry);
 
-  // Passkey signs the auth hash as the WebAuthn challenge
+  // Passkey signs the auth hash as the WebAuthn challenge.
+  // credentialId selects which platform credential to use (allowCredentials).
   const assertion = await signWithPasskey(credentialId, authHash);
 
-  const credIdBytes = base64urlToBuffer(credentialId);
+  // The Signatures map MUST be keyed by passkeyId (sha256(credentialId)[:20]) —
+  // that's what __constructor stored as the signer key. Using the raw
+  // credentialId here causes __check_auth → NotFound (Error #1).
+  const signerKeyBytes = hexToBuffer(passkeyId);
   const authenticatorDataBytes = hexToBuffer(assertion.authenticatorData);
   const clientDataJSONBytes = base64urlToBuffer(assertion.clientDataJSON);
   const rawSig = hexToBuffer(assertion.signature);
 
   const sigScVal = buildSignaturesScVal(
-    credIdBytes,
+    signerKeyBytes,
     authenticatorDataBytes,
     clientDataJSONBytes,
     rawSig,
