@@ -1,5 +1,9 @@
 import type { OrbiClientConfig, QuoteResult, BundleResult, OpStatus, CallParams } from './types';
 
+const KEYS_URL = 'https://keys.orbiwallet.xyz';
+const POPUP_WIDTH = 480;
+const POPUP_HEIGHT = 640;
+
 export class OrbiClient {
   private apiUrl: string;
   private apiKey: string;
@@ -16,7 +20,100 @@ export class OrbiClient {
     };
   }
 
-  /** Get a gas fee quote for an operation. Call this before asking the user to sign. */
+  // ── Popup helpers ───────────────────────────────────────────────────────────
+
+  private openPopup(url: string): Window | null {
+    const left = window.screenX + (window.outerWidth - POPUP_WIDTH) / 2;
+    const top = window.screenY + (window.outerHeight - POPUP_HEIGHT) / 2;
+    return window.open(url, 'orbi_popup',
+      `width=${POPUP_WIDTH},height=${POPUP_HEIGHT},left=${left},top=${top},popup=1`
+    );
+  }
+
+  private waitForMessage<T>(channelId: string, expectedType: string, timeout = 120_000): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        bc.close();
+        reject(new Error('Orbi popup timed out'));
+      }, timeout);
+
+      const bc = new BroadcastChannel(channelId);
+      bc.onmessage = (e) => {
+        if (e.data?.type === expectedType) {
+          clearTimeout(timer);
+          bc.close();
+          resolve(e.data as T);
+        } else if (e.data?.type === 'orbi_cancelled') {
+          clearTimeout(timer);
+          bc.close();
+          reject(new Error('User cancelled'));
+        }
+      };
+
+      // Also listen via window.postMessage fallback
+      const handler = (e: MessageEvent) => {
+        if (e.data?.type === expectedType) {
+          clearTimeout(timer);
+          bc.close();
+          window.removeEventListener('message', handler);
+          resolve(e.data as T);
+        } else if (e.data?.type === 'orbi_cancelled') {
+          clearTimeout(timer);
+          bc.close();
+          window.removeEventListener('message', handler);
+          reject(new Error('User cancelled'));
+        }
+      };
+      window.addEventListener('message', handler);
+    });
+  }
+
+  // ── dApp integration ────────────────────────────────────────────────────────
+
+  /**
+   * Open the Orbi connect popup.
+   * Returns the user's wallet address once they approve.
+   */
+  async connect(): Promise<string> {
+    const channelId = crypto.randomUUID();
+    const origin = encodeURIComponent(window.location.origin);
+    const url = `${KEYS_URL}/connect?origin=${origin}&channelId=${channelId}`;
+
+    const popup = this.openPopup(url);
+    if (!popup) throw new Error('Popup blocked — please allow popups for this site');
+
+    const result = await this.waitForMessage<{ type: string; address: string }>(channelId, 'orbi_connected');
+    return result.address;
+  }
+
+  /**
+   * Open the Orbi sign popup for a transaction.
+   * Returns the signed auth entry XDR.
+   */
+  async signTransaction(params: {
+    walletAddress: string;
+    contractId: string;
+    functionName: string;
+    argsXdr: string[];
+  }): Promise<string> {
+    const channelId = crypto.randomUUID();
+    const origin = encodeURIComponent(window.location.origin);
+    const argsParam = encodeURIComponent(JSON.stringify(params.argsXdr));
+    const url = `${KEYS_URL}/sign?origin=${origin}&channelId=${channelId}`
+      + `&walletAddress=${params.walletAddress}`
+      + `&contractId=${params.contractId}`
+      + `&functionName=${params.functionName}`
+      + `&argsXdr=${argsParam}`;
+
+    const popup = this.openPopup(url);
+    if (!popup) throw new Error('Popup blocked — please allow popups for this site');
+
+    const result = await this.waitForMessage<{ type: string; signedAuthEntryXdr: string }>(channelId, 'orbi_signed');
+    return result.signedAuthEntryXdr;
+  }
+
+  // ── Relay API ───────────────────────────────────────────────────────────────
+
   async quote(params: {
     contractId: string;
     functionName: string;
@@ -35,7 +132,6 @@ export class OrbiClient {
     return res.json() as Promise<QuoteResult>;
   }
 
-  /** Submit a signed auth entry to the bundler. */
   async bundle(params: CallParams): Promise<BundleResult> {
     const res = await fetch(`${this.apiUrl}/v1/bundle`, {
       method: 'POST',
@@ -59,7 +155,6 @@ export class OrbiClient {
     return res.json() as Promise<BundleResult>;
   }
 
-  /** Poll for op status. */
   async getStatus(opId: string): Promise<OpStatus> {
     const res = await fetch(`${this.apiUrl}/v1/status/${opId}`, {
       headers: this.headers,
@@ -68,7 +163,6 @@ export class OrbiClient {
     return res.json() as Promise<OpStatus>;
   }
 
-  /** Poll until confirmed or failed. */
   async waitForConfirmation(
     opId: string,
     opts?: { intervalMs?: number; maxAttempts?: number },

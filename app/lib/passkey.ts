@@ -26,7 +26,7 @@ export async function createPasskey(
   const reg = await startRegistration({
     optionsJSON: {
       challenge: bufferToBase64url(challenge),
-      rp: { name: 'Orbi Wallet', id: window.location.hostname },
+      rp: { name: 'Orbi Wallet', id: process.env.NEXT_PUBLIC_PASSKEY_RP_ID ?? window.location.hostname },
       user: {
         id: bufferToBase64url(new TextEncoder().encode(username)),
         name: username,
@@ -58,7 +58,7 @@ export async function authenticatePasskey(credentialId?: string): Promise<string
   const assertion = await startAuthentication({
     optionsJSON: {
       challenge: bufferToBase64url(challenge),
-      rpId: window.location.hostname,
+      rpId: process.env.NEXT_PUBLIC_PASSKEY_RP_ID ?? window.location.hostname,
       allowCredentials: credentialId
         ? [{ id: credentialId, type: 'public-key' }]
         : [],
@@ -81,7 +81,7 @@ export async function signWithPasskey(
   const assertion = await startAuthentication({
     optionsJSON: {
       challenge: bufferToBase64url(challenge),
-      rpId: window.location.hostname,
+      rpId: process.env.NEXT_PUBLIC_PASSKEY_RP_ID ?? window.location.hostname,
       allowCredentials: [{ id: credentialId, type: 'public-key' }],
       userVerification: 'required',
       timeout: 60000,
