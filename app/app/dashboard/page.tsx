@@ -436,26 +436,61 @@ export default function DashboardPage() {
         {/* ── Receive ── */}
         {panelStep === 'receive' && (
           <>
-            <div className="flex items-center justify-between p-5 border-b border-slate-800">
+            {/* Header */}
+            <div className="flex items-center gap-3 p-5 border-b border-slate-800">
               <button onClick={() => setPanelOpen(false)} className="text-slate-400 hover:text-white transition-colors">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
               </button>
-              <div className="flex gap-1 bg-slate-800 rounded-xl p-1">
-                <button onClick={() => { setPanelTab('send'); setPanelStep('send-form'); }} className="px-4 py-1.5 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition-colors">Send</button>
-                <button className="px-4 py-1.5 rounded-lg text-sm font-medium bg-white text-slate-900">Receive</button>
+              <div className="flex items-center gap-2 flex-1 justify-center">
+                <img src={dicebearUrl(wallet.walletAddress, 20)} alt="avatar" className="w-5 h-5 rounded-full" />
+                <span className="text-white text-sm font-medium font-mono">{truncate(wallet.walletAddress)}</span>
               </div>
               <div className="w-5" />
             </div>
 
-            <div className="flex-1 flex flex-col items-center justify-center p-8 gap-6">
-              <p className="text-slate-400 text-sm text-center">Share your wallet address to receive XLM or tokens.</p>
-              <div className="w-full p-4 rounded-2xl bg-slate-800/50 border border-slate-700/50">
-                <p className="text-slate-500 text-xs mb-1">Your wallet address</p>
-                <p className="text-white font-mono text-xs break-all">{wallet.walletAddress}</p>
+            <div className="flex-1 flex flex-col items-center p-6 gap-5 overflow-y-auto">
+              {/* QR Code */}
+              <div className="p-4 bg-white rounded-2xl">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(wallet.walletAddress)}&qzone=1&color=000000&bgcolor=ffffff`}
+                  alt="QR code"
+                  className="w-[220px] h-[220px]"
+                />
               </div>
-              <button onClick={copyAddress} className="w-full py-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-semibold transition-colors">
-                {copied ? '✓ Copied!' : 'Copy address'}
+
+              {/* Address */}
+              <p className="text-white font-mono text-xs text-center break-all px-2 leading-relaxed">
+                {wallet.walletAddress}
+              </p>
+
+              {/* Copy button */}
+              <button
+                onClick={copyAddress}
+                className="px-8 py-2.5 rounded-xl border border-slate-700 hover:border-slate-500 text-white text-sm font-medium transition-colors"
+              >
+                {copied ? '✓ Copied!' : 'Copy'}
               </button>
+
+              {/* Details */}
+              <div className="w-full flex flex-col gap-3 border-t border-slate-800 pt-4 mt-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Balance</span>
+                  <span className="text-white">{usdValue !== null ? `$${usdValue.toFixed(2)}` : '—'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Provider</span>
+                  <span className="text-white">Orbi Wallet</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Network</span>
+                  <span className="text-white">Stellar Testnet</span>
+                </div>
+              </div>
+
+              <div className="w-full flex items-start gap-2 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 mt-1">
+                <svg className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <p className="text-yellow-400 text-xs">Only send XLM and Stellar tokens to this address.</p>
+              </div>
             </div>
           </>
         )}
