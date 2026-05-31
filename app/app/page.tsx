@@ -79,14 +79,14 @@ export default function Home() {
         <div className="relative hidden md:flex flex-col px-8 py-10">
 
           {/* Description text — aligned with headline (mt-12 matches left column) */}
-          <p className="mt-[7rem] text-slate-300 text-[clamp(1.1rem,2vw,1.6rem)] leading-snug font-light max-w-md ml-55 whitespace-pre-line">{`Sign in with passkeys—no\npasswords, no seed phrases.\nOne account for sending,\nreceiving, and connecting to dApps.`}</p>
+          <p className="mt-[7rem] text-white text-[clamp(1rem,1.8vw,1.4rem)] leading-snug font-light max-w-md ml-55 whitespace-pre-line">{`Sign in with passkeys—no\npasswords, no seed phrases.\nOne account for sending,\nreceiving, and connecting to dApps.`}</p>
 
           {/* Background visual — large, anchored bottom-right, bleeds off */}
           <img
             src="/Background.png"
             alt=""
             aria-hidden="true"
-            className="absolute bottom-[-90%] right-[-40%] w-[210%] max-w-none opacity-80 pointer-events-none select-none"
+            className="absolute bottom-[-50vh] right-[-14vw] w-[85vw] max-w-none opacity-60 pointer-events-none select-none"
           />
         </div>
       </div>
