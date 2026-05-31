@@ -2,25 +2,10 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { loadWallet, saveWallet } from '../lib/storage';
+import { loadWallet } from '../lib/storage';
 
 const KEYS_URL = 'https://keys.orbiwallet.xyz';
-const POPUP = 'width=480,height=660,left=400,top=100,popup=1';
-
-function openPopup(url: string) {
-  return window.open(url, 'orbi_popup', POPUP);
-}
-
-function listenForMessage<T>(channelId: string, type: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { bc.close(); reject(new Error('Timeout')); }, 120_000);
-    const bc = new BroadcastChannel(channelId);
-    bc.onmessage = (e) => {
-      if (e.data?.type === type) { clearTimeout(timer); bc.close(); resolve(e.data as T); }
-      if (e.data?.type === 'orbi_cancelled') { clearTimeout(timer); bc.close(); reject(new Error('Cancelled')); }
-    };
-  });
-}
+const ACCOUNT_URL = 'https://account.orbiwallet.xyz';
 
 export default function Home() {
   const router = useRouter();
@@ -29,25 +14,15 @@ export default function Home() {
     if (loadWallet()) router.replace('/dashboard');
   }, [router]);
 
-  async function handleSignIn() {
-    const channelId = crypto.randomUUID();
+  function handleSignIn() {
+    const redirect = encodeURIComponent(`${ACCOUNT_URL}/auth-callback`);
     const origin = encodeURIComponent(window.location.origin);
-    openPopup(`${KEYS_URL}/connect?channelId=${channelId}&origin=${origin}`);
-    try {
-      const data = await listenForMessage<{ address: string; credentialId: string; passkeyId: string; email: string }>(channelId, 'orbi_connected');
-      saveWallet({ walletAddress: data.address, credentialId: data.credentialId, passkeyId: data.passkeyId, email: data.email });
-      router.replace('/dashboard');
-    } catch { /* user cancelled */ }
+    window.location.href = `${KEYS_URL}/connect?redirect=${redirect}&origin=${origin}`;
   }
 
-  async function handleCreate() {
-    const channelId = crypto.randomUUID();
-    openPopup(`${KEYS_URL}/create?popup=1&channelId=${channelId}`);
-    try {
-      const data = await listenForMessage<{ walletAddress: string; credentialId: string; passkeyId: string; email: string }>(channelId, 'orbi_wallet_created');
-      saveWallet(data);
-      router.replace('/dashboard');
-    } catch { /* user cancelled */ }
+  function handleCreate() {
+    const redirect = encodeURIComponent(`${ACCOUNT_URL}/auth-callback`);
+    window.location.href = `${KEYS_URL}/create?redirect=${redirect}`;
   }
 
   return (

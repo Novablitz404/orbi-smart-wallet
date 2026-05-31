@@ -10,6 +10,7 @@ import accountRouter from './api/routes/account';
 import recoveryRouter from './api/routes/recovery';
 import walletRouter from './api/routes/wallet';
 import connectionsRouter from './api/routes/connections';
+import authRouter from './api/routes/auth';
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use('/v1/account', accountRouter);
 app.use('/v1/recovery', recoveryRouter);
 app.use('/v1/wallet', walletRouter);
 app.use('/v1/connections', connectionsRouter);
+app.use('/v1/auth', authRouter);
 
 app.get('/health', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
 
@@ -98,6 +100,17 @@ async function start() {
       UNIQUE(wallet_address, origin)
     );
     CREATE INDEX IF NOT EXISTS idx_connections_wallet ON dapp_connections(wallet_address);
+
+    CREATE TABLE IF NOT EXISTS auth_tokens (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      wallet_address TEXT NOT NULL,
+      credential_id TEXT NOT NULL,
+      passkey_id TEXT NOT NULL,
+      email TEXT NOT NULL,
+      used BOOLEAN NOT NULL DEFAULT false,
+      expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '2 minutes',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
 
     CREATE TABLE IF NOT EXISTS quotes (
       id UUID PRIMARY KEY,

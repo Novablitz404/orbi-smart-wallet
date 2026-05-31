@@ -139,6 +139,18 @@ export default function SignPage() {
         currentLedger: quote.currentLedger,
       });
 
+      const redirectUrl = new URLSearchParams(window.location.search).get('redirect');
+      if (redirectUrl) {
+        const url = new URL(redirectUrl);
+        url.searchParams.set('signedXdr', signedXdr);
+        url.searchParams.set('quoteId', quote.quoteId);
+        url.searchParams.set('argsXdr', JSON.stringify(signedArgsXdr));
+        url.searchParams.set('nativeSacId', quote.nativeSacId);
+        url.searchParams.set('walletAddress', req.walletAddress);
+        window.location.href = url.toString();
+        return;
+      }
+
       sendResult(signedXdr, quote.quoteId, signedArgsXdr, quote.nativeSacId);
       setStep('done');
     } catch (err: unknown) {

@@ -74,8 +74,23 @@ export default function CreateWalletPage() {
       saveWallet(walletData);
       setWalletAddress(walletAddress);
 
+      const redirectUrl = new URLSearchParams(window.location.search).get('redirect');
+      if (redirectUrl) {
+        // Redirect flow — issue relay token and redirect back
+        const res = await fetch(`${process.env.NEXT_PUBLIC_RELAY_URL}/v1/auth/tokens`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(walletData),
+        });
+        const { token } = await res.json() as { token: string };
+        const url = new URL(redirectUrl);
+        url.searchParams.set('token', token);
+        window.location.href = url.toString();
+        return;
+      }
+
       if (popupMode) {
-        // In popup mode — send back to account.orbiwallet.xyz and close
+        // Popup mode — BroadcastChannel
         const msg = { type: 'orbi_wallet_created', ...walletData };
         if (channelId) { const bc = new BroadcastChannel(channelId); bc.postMessage(msg); bc.close(); }
         try { if (window.opener) window.opener.postMessage(msg, '*'); } catch { /* COOP */ }

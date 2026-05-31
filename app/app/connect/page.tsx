@@ -52,7 +52,23 @@ export default function ConnectPage() {
       }).catch(() => {/* non-fatal */});
     }
 
-    // Return full wallet info so account.orbiwallet.xyz can store the session
+    const redirectUrl = new URLSearchParams(window.location.search).get('redirect');
+
+    if (redirectUrl) {
+      // Redirect flow (no popup) — issue a relay token and redirect back
+      const res = await fetch(`${RELAY_URL}/v1/auth/tokens`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(w),
+      });
+      const { token } = await res.json() as { token: string };
+      const url = new URL(redirectUrl);
+      url.searchParams.set('token', token);
+      window.location.href = url.toString();
+      return;
+    }
+
+    // Popup flow — BroadcastChannel + postMessage (for dApps using SDK)
     const msg = { type: 'orbi_connected', address: w.walletAddress, credentialId: w.credentialId, passkeyId: w.passkeyId, email: w.email };
     if (c) {
       const bc = new BroadcastChannel(c);
