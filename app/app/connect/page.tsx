@@ -92,9 +92,7 @@ export default function ConnectPage() {
     <main className="flex flex-col items-center justify-center min-h-screen px-6 bg-[#020817]">
       <div className="w-full max-w-sm flex flex-col items-center gap-6">
 
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-          <span className="text-white text-xl font-bold">O</span>
-        </div>
+        <img src="/Orbi%20Icon.png" alt="Orbi" className="w-14 h-14 rounded-2xl" />
 
         {step === 'loading' && (
           <div className="animate-pulse text-slate-500 text-sm">Loading…</div>

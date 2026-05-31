@@ -16,12 +16,7 @@ export default function Home() {
 
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 py-5 md:px-12">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
-            <span className="text-white text-xs font-bold">O</span>
-          </div>
-          <span className="text-white font-semibold text-sm tracking-tight">orbi account</span>
-        </div>
+        <img src="/Orbi%20logo%20-%20Landscape%20white.png" alt="Orbi" className="h-7 w-auto" />
         <a
           href="/signin"
           className="text-slate-400 hover:text-white text-sm transition-colors"

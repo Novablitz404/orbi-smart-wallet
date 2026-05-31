@@ -51,9 +51,7 @@ export default function SignInPage() {
       </a>
 
       <div className="flex flex-col items-center gap-3 mb-10">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-          <span className="text-white text-2xl font-bold">O</span>
-        </div>
+        <img src="/Orbi%20Icon.png" alt="Orbi" className="w-16 h-16 rounded-2xl" />
         <h1 className="text-2xl font-bold text-white">Welcome back</h1>
         <p className="text-slate-400 text-center text-sm max-w-xs">
           Use Face ID or Touch ID to sign in to your Orbi wallet.

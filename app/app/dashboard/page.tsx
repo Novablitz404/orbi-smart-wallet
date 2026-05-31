@@ -45,12 +45,7 @@ export default function DashboardPage() {
     <main className="flex flex-col min-h-screen bg-[#020817] px-4 pb-8">
       {/* Header */}
       <div className="flex items-center justify-between pt-6 pb-4">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
-            <span className="text-white text-xs font-bold">O</span>
-          </div>
-          <span className="text-white font-semibold">Orbi</span>
-        </div>
+        <img src="/Orbi%20logo%20-%20Landscape%20white.png" alt="Orbi" className="h-7 w-auto" />
         <div className="flex items-center gap-3">
           <a href="/settings" className="text-slate-500 hover:text-slate-300 text-sm transition-colors">Settings</a>
           <button onClick={signOut} className="text-slate-500 hover:text-slate-300 text-sm transition-colors">Sign out</button>
