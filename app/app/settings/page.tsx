@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadWallet, clearWallet } from '../../lib/storage';
+import BackButton from '../../components/BackButton';
 
 const RELAY_URL = process.env.NEXT_PUBLIC_RELAY_URL;
 
@@ -48,7 +49,7 @@ export default function SettingsPage() {
 
   function signOut() {
     clearWallet();
-    router.replace('/');
+    window.location.href = 'https://keys.orbiwallet.xyz/signout?redirect=https://account.orbiwallet.xyz';
   }
 
   if (!wallet) return null;
@@ -56,9 +57,7 @@ export default function SettingsPage() {
   return (
     <main className="flex flex-col min-h-screen bg-[#020817] px-4">
       <div className="flex items-center gap-3 pt-6 pb-6">
-        <button onClick={() => router.back()} className="text-slate-400 hover:text-white transition-colors">
-          ← Back
-        </button>
+        <BackButton onClick={() => router.back()} />
         <h1 className="text-white font-semibold">Settings</h1>
       </div>
 

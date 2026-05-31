@@ -35,8 +35,9 @@ export default function DashboardPage() {
   }
 
   function signOut() {
-    clearWallet();
-    router.replace('/');
+    clearWallet(); // clear on account.orbiwallet.xyz
+    // Also clear on keys.orbiwallet.xyz then come back to home
+    window.location.href = 'https://keys.orbiwallet.xyz/signout?redirect=https://account.orbiwallet.xyz';
   }
 
   if (!wallet) return null;
