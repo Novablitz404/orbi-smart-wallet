@@ -11,11 +11,6 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirect bare keys.orbiwallet.xyz to account.orbiwallet.xyz
-    if (typeof window !== 'undefined' && window.location.hostname === 'keys.orbiwallet.xyz') {
-      window.location.replace('https://account.orbiwallet.xyz');
-      return;
-    }
     if (loadWallet()) router.replace('/dashboard');
   }, [router]);
 
