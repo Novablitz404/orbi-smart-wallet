@@ -1,146 +1,138 @@
-import type { OrbiClientConfig, QuoteResult, BundleResult, OpStatus, CallParams } from './types';
+/**
+ * @orbi/sdk — Orbi Smart Wallet SDK
+ *
+ * Lets any Stellar dApp integrate Orbi passkey wallets.
+ * Uses the OAuth-style redirect flow — no popups, no extensions.
+ *
+ * Quick start:
+ *   const orbi = new OrbiClient({ apiUrl: 'https://api.orbiwallet.xyz' });
+ *
+ *   // 1. Connect — redirect user to Orbi, get wallet address back
+ *   orbi.connect({ redirectUrl: 'https://your-app.com/callback' });
+ *
+ *   // 2. On callback page — exchange token for wallet address
+ *   const { walletAddress } = await orbi.handleCallback();
+ *
+ *   // 3. Sign a transaction — redirect user to Orbi sign page
+ *   orbi.sign({ walletAddress, contractId, functionName, argsXdr,
+ *               redirectUrl: 'https://your-app.com/sign-callback' });
+ *
+ *   // 4. On sign-callback page — get the signed result and bundle
+ *   const result = await orbi.handleSignCallback();
+ *   const { opId } = await orbi.bundle(result);
+ *   await orbi.waitForConfirmation(opId);
+ */
+
+import type { OrbiClientConfig, OpStatus } from './types';
 
 const KEYS_URL = 'https://keys.orbiwallet.xyz';
-const POPUP_WIDTH = 480;
-const POPUP_HEIGHT = 640;
 
 export class OrbiClient {
   private apiUrl: string;
-  private apiKey: string;
 
   constructor(config: OrbiClientConfig) {
     this.apiUrl = config.apiUrl.replace(/\/$/, '');
-    this.apiKey = config.apiKey;
-  }
-
-  private get headers() {
-    return {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${this.apiKey}`,
-    };
-  }
-
-  // ── Popup helpers ───────────────────────────────────────────────────────────
-
-  private openPopup(url: string): Window | null {
-    const left = window.screenX + (window.outerWidth - POPUP_WIDTH) / 2;
-    const top = window.screenY + (window.outerHeight - POPUP_HEIGHT) / 2;
-    return window.open(url, 'orbi_popup',
-      `width=${POPUP_WIDTH},height=${POPUP_HEIGHT},left=${left},top=${top},popup=1`
-    );
-  }
-
-  private waitForMessage<T>(channelId: string, expectedType: string, timeout = 120_000): Promise<T> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        bc.close();
-        reject(new Error('Orbi popup timed out'));
-      }, timeout);
-
-      const bc = new BroadcastChannel(channelId);
-      bc.onmessage = (e) => {
-        if (e.data?.type === expectedType) {
-          clearTimeout(timer);
-          bc.close();
-          resolve(e.data as T);
-        } else if (e.data?.type === 'orbi_cancelled') {
-          clearTimeout(timer);
-          bc.close();
-          reject(new Error('User cancelled'));
-        }
-      };
-
-      // Also listen via window.postMessage fallback
-      const handler = (e: MessageEvent) => {
-        if (e.data?.type === expectedType) {
-          clearTimeout(timer);
-          bc.close();
-          window.removeEventListener('message', handler);
-          resolve(e.data as T);
-        } else if (e.data?.type === 'orbi_cancelled') {
-          clearTimeout(timer);
-          bc.close();
-          window.removeEventListener('message', handler);
-          reject(new Error('User cancelled'));
-        }
-      };
-      window.addEventListener('message', handler);
-    });
   }
 
   // ── dApp integration ────────────────────────────────────────────────────────
 
   /**
-   * Open the Orbi connect popup.
-   * Returns the user's wallet address once they approve.
+   * Redirect the user to Orbi to connect their wallet.
+   * On return, call handleCallback() to get the wallet address.
    */
-  async connect(): Promise<string> {
-    const channelId = crypto.randomUUID();
-    const origin = encodeURIComponent(window.location.origin);
-    const url = `${KEYS_URL}/connect?origin=${origin}&channelId=${channelId}`;
-
-    const popup = this.openPopup(url);
-    if (!popup) throw new Error('Popup blocked — please allow popups for this site');
-
-    const result = await this.waitForMessage<{ type: string; address: string }>(channelId, 'orbi_connected');
-    return result.address;
+  connect(params: { redirectUrl: string; origin?: string }) {
+    const url = new URL(`${KEYS_URL}/connect`);
+    url.searchParams.set('redirect', params.redirectUrl);
+    url.searchParams.set('origin', params.origin ?? window.location.origin);
+    window.location.href = url.toString();
   }
 
   /**
-   * Open the Orbi sign popup for a transaction.
-   * Returns the signed auth entry XDR.
+   * Exchange the token from the redirect callback for wallet session data.
+   * Call this on your callback page after orbi.connect().
+   * Returns null if no token in URL (user not yet connected).
    */
-  async signTransaction(params: {
+  async handleCallback(): Promise<{ walletAddress: string; passkeyId: string; email: string } | null> {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (!token) return null;
+
+    const res = await fetch(`${this.apiUrl}/v1/auth/tokens/${token}`);
+    if (!res.ok) throw new Error('Invalid or expired Orbi token');
+
+    const data = await res.json() as { walletAddress: string; passkeyId: string; email: string };
+    return data;
+  }
+
+  /**
+   * Redirect the user to Orbi to sign a transaction.
+   * On return, call handleSignCallback() to get the signed result.
+   */
+  sign(params: {
     walletAddress: string;
     contractId: string;
     functionName: string;
     argsXdr: string[];
-  }): Promise<string> {
-    const channelId = crypto.randomUUID();
-    const origin = encodeURIComponent(window.location.origin);
-    const argsParam = encodeURIComponent(JSON.stringify(params.argsXdr));
-    const url = `${KEYS_URL}/sign?origin=${origin}&channelId=${channelId}`
-      + `&walletAddress=${params.walletAddress}`
-      + `&contractId=${params.contractId}`
-      + `&functionName=${params.functionName}`
-      + `&argsXdr=${argsParam}`;
+    redirectUrl: string;
+    origin?: string;
+  }) {
+    const url = new URL(`${KEYS_URL}/sign`);
+    url.searchParams.set('redirect', params.redirectUrl);
+    url.searchParams.set('origin', params.origin ?? window.location.origin);
+    url.searchParams.set('walletAddress', params.walletAddress);
+    url.searchParams.set('contractId', params.contractId);
+    url.searchParams.set('functionName', params.functionName);
+    url.searchParams.set('argsXdr', JSON.stringify(params.argsXdr));
+    window.location.href = url.toString();
+  }
 
-    const popup = this.openPopup(url);
-    if (!popup) throw new Error('Popup blocked — please allow popups for this site');
+  /**
+   * Extract signed transaction data from the URL after orbi.sign() redirect.
+   * Returns null if no sign data in URL.
+   */
+  handleSignCallback(): {
+    signedAuthEntryXdr: string;
+    quoteId: string;
+    argsXdr: string[];
+    nativeSacId: string;
+    walletAddress: string;
+  } | null {
+    const params = new URLSearchParams(window.location.search);
+    const signedXdr = params.get('signedXdr');
+    const quoteId = params.get('quoteId');
+    const argsXdrRaw = params.get('argsXdr');
+    const nativeSacId = params.get('nativeSacId');
+    const walletAddress = params.get('walletAddress');
 
-    const result = await this.waitForMessage<{ type: string; signedAuthEntryXdr: string }>(channelId, 'orbi_signed');
-    return result.signedAuthEntryXdr;
+    if (!signedXdr || !quoteId || !argsXdrRaw || !nativeSacId || !walletAddress) return null;
+
+    return {
+      signedAuthEntryXdr: signedXdr,
+      quoteId,
+      argsXdr: JSON.parse(argsXdrRaw) as string[],
+      nativeSacId,
+      walletAddress,
+    };
   }
 
   // ── Relay API ───────────────────────────────────────────────────────────────
 
-  async quote(params: {
+  /** Submit a signed operation to the Orbi relay for batching + on-chain execution. */
+  async bundle(params: {
+    walletAddress: string;
+    quoteId: string;
+    signedAuthEntryXdr: string;
     contractId: string;
     functionName: string;
     argsXdr: string[];
-    walletAddress: string;
-  }): Promise<QuoteResult> {
-    const res = await fetch(`${this.apiUrl}/v1/quote`, {
-      method: 'POST',
-      headers: this.headers,
-      body: JSON.stringify(params),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({})) as { error?: string };
-      throw new Error(err.error ?? `Quote failed: ${res.status}`);
-    }
-    return res.json() as Promise<QuoteResult>;
-  }
-
-  async bundle(params: CallParams): Promise<BundleResult> {
+  }): Promise<{ opId: string }> {
     const res = await fetch(`${this.apiUrl}/v1/bundle`, {
       method: 'POST',
-      headers: this.headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        authEntryXdr: params.authEntryXdr,
-        feeAuthEntryXdr: params.feeAuthEntryXdr ?? '',
-        quoteId: params.quoteId,
         walletAddress: params.walletAddress,
+        quoteId: params.quoteId,
+        authEntryXdr: params.signedAuthEntryXdr,
         call: {
           contractId: params.contractId,
           function: params.functionName,
@@ -152,29 +144,23 @@ export class OrbiClient {
       const err = await res.json().catch(() => ({})) as { error?: string };
       throw new Error(err.error ?? `Bundle failed: ${res.status}`);
     }
-    return res.json() as Promise<BundleResult>;
+    return res.json() as Promise<{ opId: string }>;
   }
 
+  /** Poll for operation status. */
   async getStatus(opId: string): Promise<OpStatus> {
-    const res = await fetch(`${this.apiUrl}/v1/status/${opId}`, {
-      headers: this.headers,
-    });
+    const res = await fetch(`${this.apiUrl}/v1/status/${opId}`);
     if (!res.ok) throw new Error(`Status check failed: ${res.status}`);
     return res.json() as Promise<OpStatus>;
   }
 
-  async waitForConfirmation(
-    opId: string,
-    opts?: { intervalMs?: number; maxAttempts?: number },
-  ): Promise<OpStatus> {
-    const intervalMs = opts?.intervalMs ?? 3000;
-    const maxAttempts = opts?.maxAttempts ?? 20;
-
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(r => setTimeout(r, intervalMs));
+  /** Poll until confirmed or failed (max ~60 seconds). */
+  async waitForConfirmation(opId: string): Promise<OpStatus> {
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 2000));
       const status = await this.getStatus(opId);
       if (status.status === 'confirmed' || status.status === 'failed') return status;
     }
-    throw new Error(`Op ${opId} timed out waiting for confirmation`);
+    throw new Error(`Op ${opId} timed out`);
   }
 }

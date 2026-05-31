@@ -1,9 +1,11 @@
 export type OrbiNetwork = 'testnet' | 'mainnet';
 
 export interface OrbiClientConfig {
+  /** Orbi relay API URL — https://api.orbiwallet.xyz */
   apiUrl: string;
-  apiKey: string;
-  network?: 'testnet' | 'mainnet';
+  /** Optional: your API key if required by the relay */
+  apiKey?: string;
+  network?: OrbiNetwork;
 }
 
 export interface QuoteResult {
@@ -11,6 +13,10 @@ export interface QuoteResult {
   feeStroops: number;
   feeXlm: string;
   expiresAtLedger: number;
+  currentLedger: number;
+  nativeSacId: string;
+  feeCollectorAddress: string;
+  authEntryXdr: string;
 }
 
 export interface BundleResult {
@@ -22,14 +28,4 @@ export interface OpStatus {
   status: 'pending' | 'batched' | 'confirmed' | 'failed';
   txHash: string | null;
   error: string | null;
-}
-
-export interface CallParams {
-  contractId: string;
-  functionName: string;
-  argsXdr: string[];
-  walletAddress: string;
-  authEntryXdr: string;
-  feeAuthEntryXdr?: string;
-  quoteId?: string;
 }
