@@ -28,8 +28,12 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#020817] overflow-hidden relative">
 
+      {/* Full-page background — same dark mask effect as mobile */}
+      <img src="/Background.png" alt="" aria-hidden="true"
+        className="hidden md:block absolute inset-0 w-full h-full object-cover opacity-30 pointer-events-none select-none z-0" />
+
       {/* Desktop: two-column grid */}
-      <div className="min-h-screen hidden md:grid grid-cols-2">
+      <div className="min-h-screen hidden md:grid grid-cols-2 relative z-10">
 
         {/* LEFT */}
         <div className="flex flex-col px-14 py-10 relative z-10">
@@ -41,7 +45,7 @@ export default function Home() {
           </h1>
 
           <div className="mt-2 flex items-center gap-3 ml-2">
-            <span className="text-white text-2xl font-light tracking-wide">Born on</span>
+            <span className="text-white text-2xl font-light tracking-wide">Live on</span>
             <img src="/stellar-logo-white.png" alt="Stellar" className="h-6 w-auto" />
           </div>
 
@@ -63,9 +67,7 @@ export default function Home() {
 
         {/* RIGHT */}
         <div className="relative flex flex-col px-8 py-10">
-          <p className="mt-[7rem] text-white text-[clamp(1rem,1.8vw,1.4rem)] leading-snug font-light max-w-md ml-55 whitespace-pre-line">{`Sign in with passkeys—no\npasswords, no seed phrases.\nOne account for sending,\nreceiving, and connecting to dApps.`}</p>
-          <img src="/Background.png" alt="" aria-hidden="true"
-            className="absolute bottom-[-50vh] right-[-14vw] w-[85vw] max-w-none opacity-60 pointer-events-none select-none" />
+          <p className="mt-auto mb-45 ml-40 text-white text-[clamp(1rem,1.8vw,1.4rem)] leading-snug font-light max-w-sm whitespace-pre-line opacity-80">{`Sign in with passkeys—no\npasswords, no seed phrases.\nOne account for sending,\nreceiving, and connecting to dApps.`}</p>
         </div>
       </div>
 
@@ -86,9 +88,9 @@ export default function Home() {
             unchained.
           </h1>
 
-          {/* Born on Stellar */}
+          {/* Live on Stellar */}
           <div className="mt-3 flex items-center gap-2 ml-1">
-            <span className="text-white text-lg font-light tracking-wide">Born on</span>
+            <span className="text-white text-lg font-light tracking-wide">Live on</span>
             <img src="/stellar-logo-white.png" alt="Stellar" className="h-5 w-auto" />
           </div>
 
