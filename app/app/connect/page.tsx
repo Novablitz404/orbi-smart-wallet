@@ -15,13 +15,25 @@ export default function ConnectPage() {
   const [channelId, setChannelId] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
   const [error, setError] = useState('');
+  const [redirectUrl, setRedirectUrl] = useState('');
+
+  function handleCancel() {
+    if (redirectUrl) {
+      // Redirect flow — go back to the originating page
+      window.location.href = new URL(redirectUrl).origin;
+    } else {
+      window.close();
+    }
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const o = params.get('origin') ?? '';
     const c = params.get('channelId') ?? '';
+    const r = params.get('redirect') ?? '';
     setOrigin(o);
     setChannelId(c);
+    setRedirectUrl(r);
 
     try {
       const hostname = new URL(o).hostname;
@@ -142,7 +154,7 @@ export default function ConnectPage() {
               >
                 Continue with Face ID
               </button>
-              <button onClick={() => window.close()} className="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors">
+              <button onClick={handleCancel} className="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors">
                 Cancel
               </button>
             </div>
@@ -176,7 +188,7 @@ export default function ConnectPage() {
           <>
             <p className="text-red-400 text-sm text-center">{error}</p>
             <button onClick={() => setStep('connect')} className="text-blue-400 text-sm hover:underline">Try again</button>
-            <button onClick={() => window.close()} className="text-slate-500 text-sm">Cancel</button>
+            <button onClick={handleCancel} className="text-slate-500 text-sm">Cancel</button>
           </>
         )}
       </div>
