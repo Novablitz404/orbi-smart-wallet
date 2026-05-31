@@ -3,7 +3,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadWallet, clearWallet } from '../../lib/storage';
-import OrbitalAvatar from '../../components/OrbitalAvatar';
+const dicebearUrl = (seed: string, size: number) =>
+  `https://api.dicebear.com/9.x/rings/svg?seed=${encodeURIComponent(seed)}&size=${size}`;
 
 const RELAY_URL = process.env.NEXT_PUBLIC_RELAY_URL;
 
@@ -72,7 +73,7 @@ export default function DashboardPage() {
       {/* ── Sidebar ── */}
       <aside className="hidden md:flex flex-col w-56 border-r border-slate-800 px-4 py-6 shrink-0">
         {/* Logo */}
-        <img src="/Orbi%20logo%20-%20Landscape%20white.png" alt="Orbi" className="h-7 w-auto max-w-[120px] mb-8" />
+        <img src="/Orbi%20logo%20-%20Landscape%20white.png" alt="Orbi" className="h-9 w-auto max-w-[140px] mb-8" />
 
         {/* Nav */}
         <nav className="flex flex-col gap-1">
@@ -111,11 +112,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Bottom: sign out */}
-        <div className="mt-auto flex gap-2">
-          <a href="/settings" className="flex-1 text-center text-slate-600 hover:text-slate-400 text-xs py-1.5 transition-colors">Settings</a>
-          <button onClick={signOut} className="flex-1 text-center text-slate-600 hover:text-slate-400 text-xs py-1.5 transition-colors">Sign out</button>
-        </div>
+        <div className="mt-auto" />
       </aside>
 
       {/* ── Main content ── */}
@@ -128,7 +125,7 @@ export default function DashboardPage() {
               onClick={() => setDropdownOpen(o => !o)}
               className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-800/60 border border-slate-700/50 text-slate-300 text-sm hover:bg-slate-700/50 transition-colors"
             >
-              <OrbitalAvatar seed={wallet.walletAddress} size={24} className="rounded-full" />
+              <img src={dicebearUrl(wallet.walletAddress, 24)} alt="avatar" className="w-6 h-6 rounded-full" />
               <span className="font-mono">{truncate(wallet.walletAddress)}</span>
               <svg className={`w-4 h-4 text-slate-500 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -141,7 +138,7 @@ export default function DashboardPage() {
                   <p className="text-white font-semibold text-base mb-4">Your Account</p>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <OrbitalAvatar seed={wallet.walletAddress} size={36} className="rounded-full shrink-0" />
+                      <img src={dicebearUrl(wallet.walletAddress, 36)} alt="avatar" className="w-9 h-9 rounded-full shrink-0" />
                       <div>
                         <p className="text-white text-sm font-medium truncate max-w-[120px]">{wallet.email}</p>
                         <button
