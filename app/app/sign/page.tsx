@@ -75,8 +75,8 @@ export default function SignPage() {
     setStep('review');
   }, []);
 
-  function sendResult(signedAuthEntryXdr: string) {
-    const msg = { type: 'orbi_signed', signedAuthEntryXdr };
+  function sendResult(signedAuthEntryXdr: string, quoteId: string, argsXdr: string[], nativeSacId: string) {
+    const msg = { type: 'orbi_signed', signedAuthEntryXdr, quoteId, argsXdr, nativeSacId };
 
     if (req?.channelId) {
       const bc = new BroadcastChannel(req.channelId);
@@ -127,11 +127,11 @@ export default function SignPage() {
         }),
       });
       if (!quoteRes.ok) throw new Error('Failed to get fee quote');
-      const quote = await quoteRes.json() as { authEntryXdr: string; currentLedger: number; nativeSacId: string; feeXlm: string };
+      const quote = await quoteRes.json() as { quoteId: string; authEntryXdr: string; currentLedger: number; nativeSacId: string; feeXlm: string };
 
       const entry = xdr.SorobanAuthorizationEntry.fromXDR(Buffer.from(quote.authEntryXdr, 'base64'));
 
-      const { authEntryXdr: signedXdr, argsXdr: signedArgs } = await signAuthEntryWithPasskey({
+      const { authEntryXdr: signedXdr, argsXdr: signedArgsXdr } = await signAuthEntryWithPasskey({
         entry,
         args,
         credentialId: wallet.credentialId,
@@ -139,7 +139,7 @@ export default function SignPage() {
         currentLedger: quote.currentLedger,
       });
 
-      sendResult(signedXdr);
+      sendResult(signedXdr, quote.quoteId, signedArgsXdr, quote.nativeSacId);
       setStep('done');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Signing failed');

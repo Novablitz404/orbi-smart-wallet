@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPasskey } from '../../lib/passkey';
+import BackButton from '../../components/BackButton';
 import { createWallet } from '../../lib/relay';
 import { saveWallet } from '../../lib/storage';
 
@@ -14,6 +15,17 @@ type EmailStatus = 'idle' | 'checking' | 'available' | 'taken';
 export default function CreateWalletPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('email');
+  // popup mode: when opened by account.orbiwallet.xyz as a popup
+  const [popupMode, setPopupMode] = useState(false);
+  const [channelId, setChannelId] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('popup') === '1') {
+      setPopupMode(true);
+      setChannelId(params.get('channelId') ?? '');
+    }
+  }, []);
   const [email, setEmail] = useState('');
   const [emailStatus, setEmailStatus] = useState<EmailStatus>('idle');
   const [error, setError] = useState('');
@@ -53,14 +65,23 @@ export default function CreateWalletPage() {
         email,
       });
 
-      saveWallet({
+      const walletData = {
         walletAddress,
         credentialId: credential.credentialId,
         passkeyId: credential.passkeyId,
         email,
-      });
-
+      };
+      saveWallet(walletData);
       setWalletAddress(walletAddress);
+
+      if (popupMode) {
+        // In popup mode — send back to account.orbiwallet.xyz and close
+        const msg = { type: 'orbi_wallet_created', ...walletData };
+        if (channelId) { const bc = new BroadcastChannel(channelId); bc.postMessage(msg); bc.close(); }
+        try { if (window.opener) window.opener.postMessage(msg, '*'); } catch { /* COOP */ }
+        setTimeout(() => window.close(), 800);
+      }
+
       setStep('done');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -75,9 +96,7 @@ export default function CreateWalletPage() {
   return (
     <main className="flex flex-col items-center justify-center min-h-screen px-4 bg-[#020817]">
       <div className="w-full max-w-sm">
-        <a href="/" className="text-slate-500 hover:text-slate-300 text-sm mb-8 flex items-center gap-1">
-          ← Back
-        </a>
+        <div className="mb-8"><BackButton href="/" /></div>
 
         {step === 'email' && (
           <div className="flex flex-col gap-6">

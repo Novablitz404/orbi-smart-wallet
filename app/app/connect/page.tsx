@@ -33,26 +33,27 @@ export default function ConnectPage() {
     // Already signed in — auto-connect
     const existing = loadWallet();
     if (existing) {
-      grantAndSend(existing.walletAddress, o, c);
+      grantAndSend(existing, o, c);
       return;
     }
 
     setStep('connect');
   }, []);
 
-  async function grantAndSend(address: string, o: string, c: string) {
-    setWalletAddress(address);
+  async function grantAndSend(w: { walletAddress: string; credentialId: string; passkeyId: string; email: string }, o: string, c: string) {
+    setWalletAddress(w.walletAddress);
 
-    // Save the permission
+    // Save the dApp permission
     if (o) {
       await fetch(`${RELAY_URL}/v1/connections`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress: address, origin: o, appName }),
+        body: JSON.stringify({ walletAddress: w.walletAddress, origin: o, appName }),
       }).catch(() => {/* non-fatal */});
     }
 
-    const msg = { type: 'orbi_connected', address };
+    // Return full wallet info so account.orbiwallet.xyz can store the session
+    const msg = { type: 'orbi_connected', address: w.walletAddress, credentialId: w.credentialId, passkeyId: w.passkeyId, email: w.email };
     if (c) {
       const bc = new BroadcastChannel(c);
       bc.postMessage(msg);
@@ -81,7 +82,7 @@ export default function ConnectPage() {
       const { walletAddress: addr, email } = await res.json() as { walletAddress: string; email: string };
       saveWallet({ walletAddress: addr, credentialId, passkeyId, email });
 
-      await grantAndSend(addr, origin, channelId);
+      await grantAndSend({ walletAddress: addr, credentialId, passkeyId, email }, origin, channelId);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Connection failed');
       setStep('error');

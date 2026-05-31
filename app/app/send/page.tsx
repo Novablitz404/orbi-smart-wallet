@@ -2,14 +2,28 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { xdr, Address, Networks, Asset, nativeToScVal } from '@stellar/stellar-sdk';
+import { Address, Networks, Asset, nativeToScVal } from '@stellar/stellar-sdk';
+import { xdr } from '@stellar/stellar-sdk';
 import { loadWallet } from '../../lib/storage';
-import { signAuthEntryWithPasskey } from '../../lib/authEntry';
+import BackButton from '../../components/BackButton';
 
 const RELAY_URL = process.env.NEXT_PUBLIC_RELAY_URL;
+const KEYS_URL = 'https://keys.orbiwallet.xyz';
 const STROOPS_PER_XLM = 10_000_000;
 const NETWORK_PASSPHRASE =
   process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet' ? Networks.PUBLIC : Networks.TESTNET;
+const POPUP = 'width=480,height=660,left=400,top=100,popup=1';
+
+function listenForSignResult(channelId: string): Promise<{ signedAuthEntryXdr: string; quoteId: string; argsXdr: string[]; nativeSacId: string }> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { bc.close(); reject(new Error('Signing timed out')); }, 120_000);
+    const bc = new BroadcastChannel(channelId);
+    bc.onmessage = (e) => {
+      if (e.data?.type === 'orbi_signed') { clearTimeout(timer); bc.close(); resolve(e.data); }
+      if (e.data?.type === 'orbi_cancelled') { clearTimeout(timer); bc.close(); reject(new Error('User cancelled')); }
+    };
+  });
+}
 
 type Step = 'form' | 'quoting' | 'confirm' | 'signing' | 'confirming' | 'confirmed' | 'failed' | 'error';
 
@@ -89,33 +103,34 @@ export default function SendPage() {
 
     try {
       const amountStroops = Math.round(parseFloat(amount) * STROOPS_PER_XLM);
-      const args = buildTransferArgs(wallet.walletAddress, to, amountStroops);
+      const argsXdrRaw = buildTransferArgs(wallet.walletAddress, to, amountStroops)
+        .map(a => Buffer.from(a.toXDR()).toString('base64'));
 
-      // Deserialize the pre-built combined auth entry from the relay
-      const entry = xdr.SorobanAuthorizationEntry.fromXDR(
-        Buffer.from(quote.authEntryXdr, 'base64'),
-      );
-
-      // One Face ID prompt signs fee transfer + user op together
-      const { authEntryXdr, argsXdr } = await signAuthEntryWithPasskey({
-        entry,
-        args,
-        credentialId: wallet.credentialId,
-        passkeyId: wallet.passkeyId,
-        currentLedger: quote.currentLedger,
+      // Open keys.orbiwallet.xyz/sign popup — handles Face ID + signing
+      const channelId = crypto.randomUUID();
+      const params = new URLSearchParams({
+        channelId,
+        origin: window.location.origin,
+        walletAddress: wallet.walletAddress,
+        contractId: quote.nativeSacId,
+        functionName: 'transfer',
+        argsXdr: JSON.stringify(argsXdrRaw),
       });
+      window.open(`${KEYS_URL}/sign?${params}`, 'orbi_sign', POPUP);
+
+      const signed = await listenForSignResult(channelId);
 
       const res = await fetch(`${RELAY_URL}/v1/bundle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           walletAddress: wallet.walletAddress,
-          quoteId: quote.quoteId,
-          authEntryXdr,
+          quoteId: signed.quoteId,
+          authEntryXdr: signed.signedAuthEntryXdr,
           call: {
-            contractId: quote.nativeSacId,
+            contractId: signed.nativeSacId,
             function: 'transfer',
-            argsXdr,
+            argsXdr: signed.argsXdr,
           },
         }),
       });
@@ -159,9 +174,7 @@ export default function SendPage() {
   return (
     <main className="flex flex-col min-h-screen bg-[#020817] px-4">
       <div className="flex items-center gap-3 pt-6 pb-6">
-        <button onClick={() => router.back()} className="text-slate-400 hover:text-white transition-colors">
-          ← Back
-        </button>
+        <BackButton onClick={() => router.back()} />
         <h1 className="text-white font-semibold">Send</h1>
       </div>
 
