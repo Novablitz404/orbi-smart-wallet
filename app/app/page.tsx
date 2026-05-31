@@ -49,7 +49,7 @@ export default function Home() {
 
           <div className="mt-2 flex items-center gap-3 ml-2">
             <span className="text-white text-2xl font-light tracking-wide">Born on</span>
-            <img src="/Stellar%20Logo%20Final%20White%20RGB.png" alt="Stellar" className="h-6 w-auto" />
+            <img src="/stellar-logo-white.png" alt="Stellar" className="h-6 w-auto" />
           </div>
 
           {/* Push CTA to bottom */}
