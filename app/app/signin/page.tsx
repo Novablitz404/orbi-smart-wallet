@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authenticatePasskey, derivePasskeyId } from '../../lib/passkey';
+import BackButton from '../../components/BackButton';
 import { saveWallet } from '../../lib/storage';
 
 const RELAY_URL = process.env.NEXT_PUBLIC_RELAY_URL;
@@ -46,9 +47,9 @@ export default function SignInPage() {
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen px-4 bg-[#020817]">
-      <a href="/" className="absolute top-6 left-4 text-slate-500 hover:text-slate-300 text-sm transition-colors">
-        ← Back
-      </a>
+      <div className="w-full max-w-sm">
+        <div className="mb-8"><BackButton href="/" /></div>
+      </div>
 
       <div className="flex flex-col items-center gap-3 mb-10">
         <img src="/Orbi%20Icon.png" alt="Orbi" className="w-16 h-16 rounded-2xl" />
@@ -62,7 +63,7 @@ export default function SignInPage() {
         <button
           onClick={handleSignIn}
           disabled={status === 'loading'}
-          className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition-colors shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
+          className="w-full py-4 rounded-2xl bg-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-semibold transition-colors flex items-center justify-center gap-2"
         >
           {status === 'loading' ? (
             <>
@@ -83,7 +84,7 @@ export default function SignInPage() {
 
         <p className="text-slate-600 text-xs text-center">
           Lost access?{' '}
-          <a href="/recover" className="text-blue-500 hover:underline">
+          <a href="/recover" className="bg-gradient-to-r from-blue-400 to-violet-500 bg-clip-text text-transparent hover:opacity-80 transition-opacity">
             Recover with email
           </a>
         </p>

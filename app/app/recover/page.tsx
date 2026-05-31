@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPasskey } from '../../lib/passkey';
+import BackButton from '../../components/BackButton';
 import { initiateRecovery, confirmRecovery } from '../../lib/relay';
 import { saveWallet, loadWallet } from '../../lib/storage';
 
@@ -65,10 +66,8 @@ export default function RecoverPage() {
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen px-4 bg-[#020817]">
+      <div className="absolute top-6 left-4"><BackButton href="/" /></div>
       <div className="w-full max-w-sm">
-        <a href="/" className="text-slate-500 hover:text-slate-300 text-sm mb-8 flex items-center gap-1">
-          ← Back
-        </a>
 
         {step === 'email' && (
           <div className="flex flex-col gap-6">
