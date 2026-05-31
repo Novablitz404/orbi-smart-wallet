@@ -17,6 +17,16 @@ export default function ConnectPage() {
   const [error, setError] = useState('');
   const [redirectUrl, setRedirectUrl] = useState('');
 
+  function handleCreateWallet() {
+    const params = new URLSearchParams(window.location.search);
+    const redirect = params.get('redirect') ?? '';
+    const url = new URL(window.location.href);
+    url.pathname = '/create';
+    url.searchParams.delete('channelId');
+    // Keep redirect + origin so after creation user goes back to dApp
+    window.location.href = url.toString();
+  }
+
   function handleCancel() {
     if (redirectUrl) {
       // Redirect flow — go back to the originating page
@@ -150,11 +160,17 @@ export default function ConnectPage() {
             <div className="w-full flex flex-col gap-3">
               <button
                 onClick={handleConnect}
-                className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors"
+                className="w-full py-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-semibold transition-colors"
               >
-                Continue with Face ID
+                Sign in with Face ID
               </button>
-              <button onClick={handleCancel} className="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition-colors">
+              <button
+                onClick={handleCreateWallet}
+                className="w-full py-4 rounded-2xl bg-transparent border border-slate-700 hover:border-slate-500 text-white font-semibold text-sm transition-colors"
+              >
+                New to Orbi? Create wallet
+              </button>
+              <button onClick={handleCancel} className="w-full py-3 text-slate-500 hover:text-slate-300 text-sm transition-colors">
                 Cancel
               </button>
             </div>
