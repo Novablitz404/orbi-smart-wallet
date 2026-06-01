@@ -13,7 +13,7 @@ export interface StellarToken {
   network: 'mainnet' | 'testnet' | 'both';
 }
 
-export const XLM_ICON = 'https://stellar.expert/img/assets/native.png';
+export const XLM_ICON = 'https://s2.coinmarketcap.com/static/img/coins/64x64/512.png';
 
 export const STELLAR_TOKENS: StellarToken[] = [
   {
