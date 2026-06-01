@@ -18,6 +18,7 @@ const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet'
 const NATIVE_SAC_ID = Asset.native().contractId(NETWORK_PASSPHRASE);
 
 function truncate(addr: string) { return `${addr.slice(0, 6)}...${addr.slice(-4)}`; }
+function fmt(n: number): string { return parseFloat(n.toFixed(2)).toString(); }
 
 interface Quote { quoteId: string; feeXlm: string; nativeSacId: string; }
 type PanelStep = 'send-form' | 'send-preview' | 'receive';
@@ -392,7 +393,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-white text-sm font-medium">{usdValue !== null ? `$${usdValue.toFixed(2)}` : '—'}</p>
-                  <p className="text-slate-500 text-xs">{xlmBalance !== null ? `${parseFloat(xlmBalance).toFixed(4)} XLM` : <span className="animate-pulse">···</span>}</p>
+                  <p className="text-slate-500 text-xs">{xlmBalance !== null ? `${fmt(parseFloat(xlmBalance))} XLM` : <span className="animate-pulse">···</span>}</p>
                 </div>
                 <div className="text-right hidden md:block"><p className="text-white text-sm">100%</p></div>
                 <div className="text-right hidden md:block"><p className="text-white text-sm">{xlmPrice ? `$${xlmPrice.toFixed(4)}` : '—'}</p></div>
@@ -420,7 +421,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-white text-sm font-medium">—</p>
-                      <p className="text-slate-500 text-xs">{balance.toFixed(4)} {token.code}</p>
+                      <p className="text-slate-500 text-xs">{fmt(balance)} {token.code}</p>
                     </div>
                     <div className="text-right hidden md:block"><p className="text-white text-sm">—</p></div>
                     <div className="text-right hidden md:block"><p className="text-white text-sm">—</p></div>
