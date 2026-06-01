@@ -144,7 +144,7 @@ export default function SendPage() {
           </div>
 
           <div className="rounded-xl bg-slate-800/30 border border-slate-700/50 p-4 flex justify-between text-sm">
-            <span className="text-slate-500">Orbi fee</span>
+            <span className="text-slate-500">Network fee</span>
             <span className="text-slate-300">
               {step === 'quoting' ? (
                 <span className="animate-pulse">Calculating…</span>
