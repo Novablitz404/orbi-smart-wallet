@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadWallet, clearWallet } from '../../lib/storage';
 import { Address, Networks, Asset, nativeToScVal } from '@stellar/stellar-sdk';
-import { STELLAR_TOKENS, tokenLetterAvatar, type StellarToken } from '../../lib/tokens';
+import { STELLAR_TOKENS, tokenLetterAvatar, XLM_ICON, type StellarToken } from '../../lib/tokens';
 
 const dicebearUrl = (seed: string, size: number) =>
   `https://api.dicebear.com/9.x/rings/svg?seed=${encodeURIComponent(seed)}&size=${size}`;
@@ -256,7 +256,7 @@ export default function DashboardPage() {
               <div className="grid grid-cols-4 px-4 py-4 items-center hover:bg-slate-800/20 transition-colors rounded-xl">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center">
-                    <img src="/stellar-logo-white.png" alt="XLM" className="w-5 h-5 object-contain opacity-80" />
+                    <img src={XLM_ICON} alt="XLM" className="w-full h-full object-cover" />
                   </div>
                   <div><p className="text-white text-sm font-medium">Stellar</p><p className="text-slate-500 text-xs">XLM</p></div>
                 </div>
@@ -374,7 +374,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
-                    <img src="/stellar-logo-white.png" alt="XLM" className="w-4 h-4 opacity-80" />
+                    <img src={XLM_ICON} alt="XLM" className="w-5 h-5 object-cover" />
                   </div>
                   <div>
                     <p className="text-white text-sm font-medium">Send</p>
@@ -433,7 +433,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3 w-full justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
-                      <img src="/stellar-logo-white.png" alt="XLM" className="w-5 h-5 opacity-80" />
+                      <img src={XLM_ICON} alt="XLM" className="w-5 h-5 object-cover" />
                     </div>
                     <div>
                       <p className="text-white font-medium">Stellar (XLM)</p>
