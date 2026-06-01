@@ -10,8 +10,15 @@ const EVENT_LIMIT = 200;
 // ledgers (~7 days); we stay safely inside that so a cold-start backfill never
 // races the retention boundary as ledgers close during the scan.
 const INITIAL_BACKFILL_LEDGERS = 100_000;
+// Self-heal window: every RECONCILE_EVERY ticks we re-scan the last
+// RECONCILE_LEDGERS ledgers regardless of the cursor. Inserts are idempotent
+// (UNIQUE + ON CONFLICT DO NOTHING), so any transfer a stuck/advanced cursor
+// skipped within the last ~24h is recovered automatically — no manual rewind.
+const RECONCILE_LEDGERS = 17_280; // ~24h
+const RECONCILE_EVERY = 20;       // ~10 min at a 30s interval
 
 let isSyncing = false;
+let tickCount = 0;
 
 function decodeAddress(scVal: xdr.ScVal): string | null {
   try {
@@ -57,6 +64,9 @@ async function syncEvents(): Promise<void> {
     const latestLedger = await server.getLatestLedger();
     const currentLedger = latestLedger.sequence;
 
+    // Periodically widen the scan to self-heal any recently-missed transfers.
+    const reconcile = (tickCount++ % RECONCILE_EVERY) === 0;
+
     for (const token of tokens) {
       // One token failing (e.g. a stale backfill window) must not abort the rest.
       try {
@@ -70,6 +80,9 @@ async function syncEvents(): Promise<void> {
           : Math.max(1, currentLedger - INITIAL_BACKFILL_LEDGERS);
 
         let startLedger = lastLedger + 1;
+        // On a reconcile tick, look back at least RECONCILE_LEDGERS even if the
+        // cursor is already caught up — re-scanning is idempotent.
+        if (reconcile) startLedger = Math.min(startLedger, Math.max(1, currentLedger - RECONCILE_LEDGERS));
         if (startLedger > currentLedger) continue;
 
         let cursor: string | undefined;
@@ -84,9 +97,15 @@ async function syncEvents(): Promise<void> {
           try {
             response = await server.getEvents(params);
           } catch (err: any) {
-            // startLedger older than the RPC's retention window — clamp and retry once.
-            if (!cursor && /startLedger|ledger/i.test(String(err?.message))) {
-              startLedger = Math.max(startLedger, currentLedger - 17_280); // ~24h
+            // startLedger older than the RPC's retention window. The error states
+            // the valid range (e.g. "... ledger range: 2739838 - 2860797"); resume
+            // from the RPC's real minimum so we scan every ledger it still retains
+            // (only what's genuinely outside retention is lost — unrecoverable anyway).
+            const msg = String(err?.message ?? '');
+            if (!cursor && /ledger range/i.test(msg)) {
+              const m = msg.match(/(\d+)\s*-\s*\d+/);
+              const rpcMin = m ? parseInt(m[1], 10) : currentLedger - RECONCILE_LEDGERS;
+              startLedger = Math.max(startLedger, rpcMin);
               response = await server.getEvents({
                 filters: [{ type: 'contract' as const, contractIds: [token.sacId] }],
                 startLedger, limit: EVENT_LIMIT,
