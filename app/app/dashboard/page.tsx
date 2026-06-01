@@ -374,7 +374,7 @@ export default function DashboardPage() {
           {activeNav === 'assets' && (
             <>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-white font-medium">Coins</h2>
+                <h2 className="text-white font-medium">Tokens</h2>
                 <span className="text-xs text-slate-500 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/50">Stellar Testnet</span>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 px-4 pb-2 border-b border-slate-800 text-slate-500 text-xs font-medium">
