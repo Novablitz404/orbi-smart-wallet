@@ -31,6 +31,30 @@ router.get('/_debug/sync', async (_req: Request, res: Response) => {
 });
 
 /**
+ * POST /v1/wallet/_debug/set-cursor — TEMPORARY diagnostic.
+ * Rewinds (or removes) a token's event-sync cursor so the worker re-scans from
+ * an earlier ledger. Body: { sacId, ledger } — ledger omitted deletes the cursor.
+ */
+router.post('/_debug/set-cursor', async (req: Request, res: Response) => {
+  const { sacId, ledger } = req.body ?? {};
+  if (!sacId) return res.status(400).json({ error: 'sacId required' });
+  try {
+    if (typeof ledger === 'number') {
+      await pool.query(
+        `INSERT INTO event_sync_cursors (sac_id, last_ledger) VALUES ($1, $2)
+         ON CONFLICT (sac_id) DO UPDATE SET last_ledger = EXCLUDED.last_ledger`,
+        [sacId, ledger],
+      );
+    } else {
+      await pool.query(`DELETE FROM event_sync_cursors WHERE sac_id = $1`, [sacId]);
+    }
+    return res.json({ ok: true, sacId, ledger: ledger ?? null });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message ?? 'set-cursor failed' });
+  }
+});
+
+/**
  * GET /v1/wallet/balance/:address
  * Returns the native XLM balance by simulating native_sac.balance(address).
  */
