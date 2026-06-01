@@ -244,7 +244,7 @@ export default function DashboardPage() {
   if (!wallet) return null;
 
   return (
-    <div className="flex min-h-screen bg-[#020817] relative">
+    <div className="flex h-screen md:h-auto md:min-h-screen bg-[#020817] relative overflow-hidden md:overflow-visible">
 
       {/* ── Sidebar ── */}
       <aside className="hidden md:flex flex-col w-56 border-r border-slate-800 px-4 py-6 shrink-0">
