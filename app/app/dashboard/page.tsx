@@ -4,7 +4,9 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadWallet, clearWallet } from '../../lib/storage';
 import { Address, Networks, Asset, nativeToScVal } from '@stellar/stellar-sdk';
-import { STELLAR_TOKENS, tokenLetterAvatar, XLM_ICON, type StellarToken } from '../../lib/tokens';
+import { STELLAR_TOKENS, tokenLetterAvatar, XLM_ICON, stellarExpertIcon, type StellarToken } from '../../lib/tokens';
+import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
 
 const dicebearUrl = (seed: string, size: number) =>
   `https://api.dicebear.com/9.x/rings/svg?seed=${encodeURIComponent(seed)}&size=${size}`;
@@ -12,13 +14,40 @@ const dicebearUrl = (seed: string, size: number) =>
 const RELAY_URL = process.env.NEXT_PUBLIC_RELAY_URL;
 const KEYS_URL = 'https://keys.orbiwallet.xyz';
 const ACCOUNT_URL = 'https://account.orbiwallet.xyz';
-const STROOPS_PER_XLM = 10_000_000;
 const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet' ? Networks.PUBLIC : Networks.TESTNET;
+const NATIVE_SAC_ID = Asset.native().contractId(NETWORK_PASSPHRASE);
 
 function truncate(addr: string) { return `${addr.slice(0, 6)}...${addr.slice(-4)}`; }
 
 interface Quote { quoteId: string; feeXlm: string; nativeSacId: string; }
 type PanelStep = 'send-form' | 'send-preview' | 'receive';
+
+interface TxRecord {
+  id: string;
+  direction: 'outgoing' | 'incoming';
+  type: 'transfer' | 'contract_call';
+  status: 'pending' | 'batched' | 'confirmed' | 'failed';
+  assetCode?: string;
+  amount?: string;
+  to?: string;
+  from?: string;
+  functionName?: string;
+  contractId?: string;
+  txHash?: string | null;
+  createdAt: string;
+}
+
+interface SendToken {
+  code: string;
+  name: string;
+  sacId: string;
+  decimals: number;
+  iconSrc: string;
+}
+
+const XLM_SEND_TOKEN: SendToken = {
+  code: 'XLM', name: 'Stellar', sacId: NATIVE_SAC_ID, decimals: 7, iconSrc: XLM_ICON,
+};
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -29,6 +58,7 @@ export default function DashboardPage() {
   const [activeNav, setActiveNav] = useState('assets');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const mobileDropdownRef = useRef<HTMLDivElement>(null);
 
   // Send/Receive panel
   const [panelOpen, setPanelOpen] = useState(false);
@@ -40,14 +70,37 @@ export default function DashboardPage() {
   const [sendQuoting, setSendQuoting] = useState(false);
   const [sendError, setSendError] = useState('');
   const [tokenBalances, setTokenBalances] = useState<Record<string, string>>({});
+  const [selectedToken, setSelectedToken] = useState<SendToken>(XLM_SEND_TOKEN);
+  const [tokenSelectorOpen, setTokenSelectorOpen] = useState(false);
+  const [transactions, setTransactions] = useState<TxRecord[] | null>(null);
+  const [txLoading, setTxLoading] = useState(false);
+  const [txPage, setTxPage] = useState(1);
+  const [txHasMore, setTxHasMore] = useState(false);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setDropdownOpen(false);
+      const outsideDesktop = !dropdownRef.current || !dropdownRef.current.contains(e.target as Node);
+      const outsideMobile = !mobileDropdownRef.current || !mobileDropdownRef.current.contains(e.target as Node);
+      if (outsideDesktop && outsideMobile) setDropdownOpen(false);
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  async function fetchHistory(walletAddress: string, page = 1) {
+    setTxLoading(true);
+    try {
+      const res = await fetch(`${RELAY_URL}/v1/wallet/history/${walletAddress}?page=${page}&limit=10`);
+      const data = await res.json() as { transactions?: TxRecord[]; hasMore?: boolean };
+      setTransactions(prev => page === 1 ? (data.transactions ?? []) : [...(prev ?? []), ...(data.transactions ?? [])]);
+      setTxHasMore(data.hasMore ?? false);
+      setTxPage(page);
+    } catch {
+      if (page === 1) setTransactions([]);
+    } finally {
+      setTxLoading(false);
+    }
+  }
 
   useEffect(() => {
     const w = loadWallet();
@@ -60,15 +113,11 @@ export default function DashboardPage() {
       .then(r => r.json()).then((d: { stellar?: { usd?: number } }) => setXlmPrice(d.stellar?.usd ?? null))
       .catch(() => setXlmPrice(null));
 
-    // Fetch balances for all known tokens in parallel
     Promise.all(
       STELLAR_TOKENS.map(token =>
         fetch(`${RELAY_URL}/v1/wallet/token-balance/${w.walletAddress}/${token.sacId}`)
           .then(r => r.json())
-          .then((d: { balance?: string; decimals?: number }) => ({
-            sacId: token.sacId,
-            balance: d.balance ?? '0',
-          }))
+          .then((d: { balance?: string; decimals?: number }) => ({ sacId: token.sacId, balance: d.balance ?? '0' }))
           .catch(() => ({ sacId: token.sacId, balance: '0' }))
       )
     ).then(results => {
@@ -77,6 +126,13 @@ export default function DashboardPage() {
       setTokenBalances(map);
     });
   }, [router]);
+
+  useEffect(() => {
+    if (activeNav === 'activity' && wallet && transactions === null) {
+      fetchHistory(wallet.walletAddress);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNav, wallet]);
 
   function copyAddress() {
     if (!wallet) return;
@@ -93,28 +149,61 @@ export default function DashboardPage() {
     setPanelTab(tab);
     setPanelStep(tab === 'send' ? 'send-form' : 'receive');
     setSendTo(''); setSendAmount(''); setSendQuote(null); setSendError('');
+    setSelectedToken(XLM_SEND_TOKEN);
+    setTokenSelectorOpen(false);
     setPanelOpen(true);
   }
 
+  // Derive selected token's available balance in human units
+  function getSelectedBalance(): string {
+    if (selectedToken.code === 'XLM') {
+      return xlmBalance ? parseFloat(xlmBalance).toFixed(4) : '0';
+    }
+    const raw = tokenBalances[selectedToken.sacId] ?? '0';
+    return (Number(BigInt(raw)) / 10 ** selectedToken.decimals).toFixed(4);
+  }
+
   function setMax() {
-    if (xlmBalance) setSendAmount(parseFloat(xlmBalance).toFixed(2));
+    setSendAmount(getSelectedBalance());
+  }
+
+  // All tokens with a non-zero balance, for the selector
+  function getAvailableTokens(): SendToken[] {
+    const tokens: SendToken[] = [XLM_SEND_TOKEN];
+    for (const t of STELLAR_TOKENS) {
+      const raw = tokenBalances[t.sacId] ?? '0';
+      if (BigInt(raw) > 0n) {
+        tokens.push({
+          code: t.code,
+          name: t.name,
+          sacId: t.sacId,
+          decimals: t.decimals,
+          iconSrc: stellarExpertIcon(t.code, t.issuer),
+        });
+      }
+    }
+    return tokens;
   }
 
   async function handlePreview() {
     if (!wallet || !sendTo.trim() || !sendAmount) return;
     setSendQuoting(true); setSendError('');
     try {
-      const amountStroops = Math.round(parseFloat(sendAmount) * STROOPS_PER_XLM);
-      const nativeSacId = Asset.native().contractId(NETWORK_PASSPHRASE);
+      const amountUnits = Math.round(parseFloat(sendAmount) * 10 ** selectedToken.decimals);
       const argsXdr = [
         new Address(wallet.walletAddress).toScVal(),
         new Address(sendTo.trim()).toScVal(),
-        nativeToScVal(BigInt(amountStroops), { type: 'i128' }),
+        nativeToScVal(BigInt(amountUnits), { type: 'i128' }),
       ].map(a => Buffer.from(a.toXDR()).toString('base64'));
       const res = await fetch(`${RELAY_URL}/v1/quote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress: wallet.walletAddress, contractId: nativeSacId, functionName: 'transfer', argsXdr }),
+        body: JSON.stringify({
+          walletAddress: wallet.walletAddress,
+          contractId: selectedToken.sacId,
+          functionName: 'transfer',
+          argsXdr,
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? 'Quote failed');
       const q = await res.json() as Quote;
@@ -127,18 +216,17 @@ export default function DashboardPage() {
 
   function handleConfirm() {
     if (!wallet || !sendQuote) return;
-    const amountStroops = Math.round(parseFloat(sendAmount) * STROOPS_PER_XLM);
-    const nativeSacId = Asset.native().contractId(NETWORK_PASSPHRASE);
+    const amountUnits = Math.round(parseFloat(sendAmount) * 10 ** selectedToken.decimals);
     const argsXdr = JSON.stringify([
       new Address(wallet.walletAddress).toScVal(),
       new Address(sendTo.trim()).toScVal(),
-      nativeToScVal(BigInt(amountStroops), { type: 'i128' }),
+      nativeToScVal(BigInt(amountUnits), { type: 'i128' }),
     ].map(a => Buffer.from(a.toXDR()).toString('base64')));
     const params = new URLSearchParams({
       redirect: `${ACCOUNT_URL}/sign-callback`,
       origin: window.location.origin,
       walletAddress: wallet.walletAddress,
-      contractId: nativeSacId,
+      contractId: selectedToken.sacId,
       functionName: 'transfer',
       argsXdr,
     });
@@ -147,7 +235,10 @@ export default function DashboardPage() {
 
   const xlmFloat = xlmBalance ? parseFloat(xlmBalance) : 0;
   const usdValue = xlmPrice ? xlmFloat * xlmPrice : null;
-  const sendUsd = xlmPrice && sendAmount ? (parseFloat(sendAmount) * xlmPrice).toFixed(2) : '0.00';
+  // USD equivalent of the send amount — only for XLM
+  const sendUsd = selectedToken.code === 'XLM' && xlmPrice && sendAmount
+    ? (parseFloat(sendAmount) * xlmPrice).toFixed(2)
+    : null;
 
   if (!wallet) return null;
 
@@ -228,14 +319,47 @@ export default function DashboardPage() {
         {/* Mobile header */}
         <div className="md:hidden flex items-center justify-between px-4 pt-6 pb-4 border-b border-slate-800">
           <img src="/Orbi%20logo%20-%20Landscape%20white.png" alt="Orbi" className="h-6 w-auto" />
-          <div className="flex items-center gap-3">
-            <a href="/settings" className="text-slate-500 text-sm">Settings</a>
-            <button onClick={signOut} className="text-slate-500 text-sm">Sign out</button>
+          <div className="relative" ref={mobileDropdownRef}>
+            <button onClick={() => setDropdownOpen(o => !o)} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800/60 border border-slate-700/50 text-slate-300 text-sm hover:bg-slate-700/50 transition-colors">
+              <img src={dicebearUrl(wallet.walletAddress, 22)} alt="avatar" className="w-5 h-5 rounded-full" />
+              <span className="font-mono">{truncate(wallet.walletAddress)}</span>
+              <svg className={`w-4 h-4 text-slate-500 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </button>
+            {dropdownOpen && (
+              <div className="absolute right-0 top-full mt-2 w-72 bg-slate-900 border border-slate-700/50 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden z-50">
+                <div className="px-5 pt-5 pb-3">
+                  <p className="text-white font-semibold text-base mb-4">Your Account</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <img src={dicebearUrl(wallet.walletAddress, 36)} alt="avatar" className="w-9 h-9 rounded-full shrink-0" />
+                      <div>
+                        <p className="text-white text-sm font-medium truncate max-w-[120px]">{wallet.email}</p>
+                        <button onClick={copyAddress} className="flex items-center gap-1 text-slate-500 text-xs hover:text-slate-300 transition-colors">
+                          <span className="font-mono">{truncate(wallet.walletAddress)}</span>
+                          <span>{copied ? '✓' : '⎘'}</span>
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-white text-sm font-medium">{usdValue !== null ? `$${usdValue.toFixed(2)}` : '—'}</p>
+                  </div>
+                </div>
+                <div className="px-3 pb-3 flex flex-col gap-1">
+                  <a href="/settings" onClick={() => setDropdownOpen(false)} className="flex items-center justify-between px-3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700/80 transition-colors">
+                    <span className="text-white text-sm font-medium">Settings</span>
+                    <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  </a>
+                  <button onClick={signOut} className="flex items-center justify-between px-3 py-3 rounded-xl hover:bg-slate-800/50 transition-colors">
+                    <span className="text-red-400 text-sm font-medium">Sign out</span>
+                    <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="px-6 md:px-10 py-6 flex-1">
-          <div className="mb-8">
+          <div className="mb-8 text-right md:text-left">
             <p className="text-slate-400 text-base mb-1">Your balance:</p>
             <p className="text-5xl md:text-6xl font-bold text-white">
               {usdValue === null ? <span className="animate-pulse text-slate-600">$···</span> : `$${usdValue.toFixed(2)}`}
@@ -269,18 +393,16 @@ export default function DashboardPage() {
                 <div className="text-right hidden md:block"><p className="text-white text-sm">{xlmPrice ? `$${xlmPrice.toFixed(4)}` : '—'}</p></div>
               </div>
 
-              {/* Other token rows */}
               {STELLAR_TOKENS.map((token: StellarToken) => {
                 const rawBalance = tokenBalances[token.sacId] ?? null;
                 const balance = rawBalance ? (Number(BigInt(rawBalance)) / 10 ** token.decimals) : 0;
                 if (balance === 0) return null;
-                const stellarExpertIcon = `https://stellar.expert/img/assets/${token.code}-${token.issuer}.png`;
                 return (
                   <div key={token.sacId} className="grid grid-cols-4 px-4 py-4 items-center hover:bg-slate-800/20 transition-colors rounded-xl">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0">
                         <img
-                          src={stellarExpertIcon}
+                          src={stellarExpertIcon(token.code, token.issuer)}
                           alt={token.code}
                           className="w-full h-full object-cover"
                           onError={e => { (e.target as HTMLImageElement).src = tokenLetterAvatar(token.code); }}
@@ -304,10 +426,104 @@ export default function DashboardPage() {
           )}
 
           {activeNav === 'activity' && (
-            <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <p className="text-slate-500 text-sm">No transactions yet</p>
-              <p className="text-slate-600 text-xs text-center max-w-xs">Your transaction history will appear here after your first send or receive.</p>
-            </div>
+            <SkeletonTheme baseColor="#1e293b" highlightColor="#334155">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-white font-medium">Activity</h2>
+                  <button
+                    onClick={() => wallet && fetchHistory(wallet.walletAddress, 1)}
+                    disabled={txLoading}
+                    className="text-xs text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-40"
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                {txLoading && transactions === null && (
+                  <div className="flex flex-col gap-1">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="flex items-center gap-4 px-2 py-3">
+                        <Skeleton circle width={36} height={36} />
+                        <div className="flex-1">
+                          <Skeleton width="40%" height={13} className="mb-1.5" />
+                          <Skeleton width="55%" height={11} />
+                        </div>
+                        <div className="text-right">
+                          <Skeleton width={64} height={13} className="mb-1.5" />
+                          <Skeleton width={40} height={11} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!txLoading && transactions !== null && transactions.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-20 gap-3">
+                    <p className="text-slate-500 text-sm">No transactions yet</p>
+                    <p className="text-slate-600 text-xs text-center max-w-xs">Your transaction history will appear here after your first send or receive.</p>
+                  </div>
+                )}
+
+                {transactions && transactions.map(tx => {
+                  const isIncoming = tx.direction === 'incoming';
+                  const isTransfer = tx.type === 'transfer';
+                  const humanAmount = tx.amount && tx.assetCode
+                    ? `${(Number(BigInt(tx.amount)) / 1e7).toFixed(4)} ${tx.assetCode}`
+                    : null;
+                  const counterparty = isIncoming ? tx.from : tx.to;
+                  const label = isTransfer ? (isIncoming ? 'Received' : 'Sent') : (tx.functionName ?? 'Contract call');
+                  const date = new Date(tx.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+                  return (
+                    <div key={tx.id} className="flex items-center gap-4 px-2 py-3 rounded-xl hover:bg-slate-800/20 transition-colors">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isIncoming ? 'bg-green-500/10' : 'bg-slate-800'}`}>
+                        {isTransfer ? (
+                          <svg className={`w-4 h-4 ${isIncoming ? 'text-green-400' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            {isIncoming
+                              ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                              : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />}
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                          </svg>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium">{label}</p>
+                        <p className="text-slate-500 text-xs truncate font-mono">
+                          {counterparty ? truncate(counterparty) : tx.contractId ? truncate(tx.contractId) : '—'}
+                        </p>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        {humanAmount && (
+                          <p className={`text-sm font-medium ${isIncoming ? 'text-green-400' : 'text-white'}`}>
+                            {isIncoming ? '+' : '-'}{humanAmount}
+                          </p>
+                        )}
+                        <p className={`text-xs ${tx.status === 'failed' ? 'text-red-400' : tx.status !== 'confirmed' ? 'text-yellow-400' : 'text-slate-500'}`}>
+                          {tx.status !== 'confirmed' ? tx.status : date}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {txHasMore && (
+                  <button
+                    onClick={() => wallet && fetchHistory(wallet.walletAddress, txPage + 1)}
+                    disabled={txLoading}
+                    className="w-full mt-3 py-2.5 rounded-xl border border-slate-700 text-slate-400 text-sm hover:border-slate-500 hover:text-slate-300 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                  >
+                    {txLoading
+                      ? <><svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>Loading…</>
+                      : 'Load more'}
+                  </button>
+                )}
+              </div>
+            </SkeletonTheme>
           )}
 
           {activeNav === 'apps' && (
@@ -328,12 +544,10 @@ export default function DashboardPage() {
       </main>
 
       {/* ── Send/Receive slide panel ── */}
-      {/* Backdrop */}
       {panelOpen && (
         <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setPanelOpen(false)} />
       )}
 
-      {/* Panel */}
       <div className={`fixed top-0 right-0 h-full w-full md:w-96 bg-slate-900 border-l border-slate-700/50 z-50 flex flex-col shadow-2xl transition-transform duration-300 ease-out ${panelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
 
         {/* ── Send form ── */}
@@ -361,32 +575,56 @@ export default function DashboardPage() {
                   className="flex-1 bg-transparent text-5xl font-bold text-white outline-none placeholder-slate-700 w-0"
                 />
                 <div className="flex items-center gap-2">
-                  <span className="text-slate-400 text-2xl font-light">USD</span>
+                  <span className="text-slate-400 text-2xl font-light">{selectedToken.code}</span>
                   <button onClick={setMax} className="text-xs text-slate-500 border border-slate-700 px-2.5 py-1 rounded-lg hover:border-slate-500 transition-colors">Max</button>
                 </div>
               </div>
-              {sendAmount && xlmPrice && (
-                <p className="text-blue-400 text-sm flex items-center gap-1">
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
-                  {(parseFloat(sendAmount) / xlmPrice).toFixed(4)} XLM
-                </p>
+              {sendUsd !== null && (
+                <p className="text-blue-400 text-sm">≈ ${sendUsd} USD</p>
               )}
 
-              {/* Token */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
-                    <img src={XLM_ICON} alt="XLM" className="w-5 h-5 object-cover" />
+              {/* Token selector */}
+              <div className="relative">
+                <button
+                  onClick={() => setTokenSelectorOpen(o => !o)}
+                  className="flex items-center justify-between w-full p-3 rounded-xl bg-slate-800/50 border border-slate-700/50 hover:border-slate-500 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-slate-700 overflow-hidden flex items-center justify-center">
+                      <img src={selectedToken.iconSrc} alt={selectedToken.code} className="w-full h-full object-cover"
+                        onError={e => { (e.target as HTMLImageElement).src = tokenLetterAvatar(selectedToken.code); }} />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-white text-sm font-medium">{selectedToken.name}</p>
+                      <p className="text-slate-500 text-xs">{getSelectedBalance()} {selectedToken.code} available</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-white text-sm font-medium">Send</p>
-                    <p className="text-slate-500 text-xs">Stellar (XLM)</p>
+                  <svg className={`w-4 h-4 text-slate-500 transition-transform ${tokenSelectorOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                </button>
+
+                {tokenSelectorOpen && (
+                  <div className="absolute top-full mt-1 left-0 right-0 bg-slate-900 border border-slate-700/50 rounded-xl overflow-hidden shadow-xl z-10">
+                    {getAvailableTokens().map(token => (
+                      <button
+                        key={token.sacId}
+                        onClick={() => { setSelectedToken(token); setSendAmount(''); setTokenSelectorOpen(false); }}
+                        className={`flex items-center gap-3 w-full px-4 py-3 hover:bg-slate-800 transition-colors text-left ${selectedToken.sacId === token.sacId ? 'bg-slate-800/60' : ''}`}
+                      >
+                        <div className="w-7 h-7 rounded-full bg-slate-700 overflow-hidden flex-shrink-0">
+                          <img src={token.iconSrc} alt={token.code} className="w-full h-full object-cover"
+                            onError={e => { (e.target as HTMLImageElement).src = tokenLetterAvatar(token.code); }} />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-white text-sm font-medium">{token.name}</p>
+                          <p className="text-slate-500 text-xs">{token.code}</p>
+                        </div>
+                        {selectedToken.sacId === token.sacId && (
+                          <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                        )}
+                      </button>
+                    ))}
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-white text-sm">{usdValue !== null ? `$${usdValue.toFixed(2)}` : '—'}</p>
-                  <p className="text-slate-500 text-xs">Available</p>
-                </div>
+                )}
               </div>
 
               {/* Recipient */}
@@ -434,16 +672,17 @@ export default function DashboardPage() {
               <div className="flex flex-col items-center gap-1 py-4">
                 <div className="flex items-center gap-3 w-full justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
-                      <img src={XLM_ICON} alt="XLM" className="w-5 h-5 object-cover" />
+                    <div className="w-10 h-10 rounded-full bg-slate-700 overflow-hidden flex items-center justify-center">
+                      <img src={selectedToken.iconSrc} alt={selectedToken.code} className="w-full h-full object-cover"
+                        onError={e => { (e.target as HTMLImageElement).src = tokenLetterAvatar(selectedToken.code); }} />
                     </div>
                     <div>
-                      <p className="text-white font-medium">Stellar (XLM)</p>
-                      <p className="text-slate-500 text-xs">{sendAmount} XLM</p>
+                      <p className="text-white font-medium">{selectedToken.name}</p>
+                      <p className="text-slate-500 text-xs">{sendAmount} {selectedToken.code}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-white font-medium">${sendUsd}</p>
+                    {sendUsd !== null && <p className="text-white font-medium">${sendUsd}</p>}
                   </div>
                 </div>
 
@@ -488,7 +727,6 @@ export default function DashboardPage() {
         {/* ── Receive ── */}
         {panelStep === 'receive' && (
           <>
-            {/* Header */}
             <div className="flex items-center gap-3 p-5 border-b border-slate-800">
               <button onClick={() => setPanelOpen(false)} className="text-slate-400 hover:text-white transition-colors">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
@@ -501,7 +739,6 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex-1 flex flex-col items-center p-6 gap-5 overflow-y-auto">
-              {/* QR Code */}
               <div className="p-4 bg-white rounded-2xl">
                 <img
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(wallet.walletAddress)}&qzone=1&color=000000&bgcolor=ffffff`}
@@ -510,12 +747,10 @@ export default function DashboardPage() {
                 />
               </div>
 
-              {/* Address */}
               <p className="text-white font-mono text-xs text-center break-all px-2 leading-relaxed">
                 {wallet.walletAddress}
               </p>
 
-              {/* Copy button */}
               <button
                 onClick={copyAddress}
                 className="px-8 py-2.5 rounded-xl border border-slate-700 hover:border-slate-500 text-white text-sm font-medium transition-colors"
@@ -523,7 +758,6 @@ export default function DashboardPage() {
                 {copied ? '✓ Copied!' : 'Copy'}
               </button>
 
-              {/* Details */}
               <div className="w-full flex flex-col gap-3 border-t border-slate-800 pt-4 mt-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-400">Balance</span>

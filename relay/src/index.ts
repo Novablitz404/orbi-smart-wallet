@@ -1,8 +1,10 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { pool } from './lib/db';
 import { startFlushWorker } from './worker/flush';
+import { startEventSyncWorker } from './worker/eventSync';
 import quoteRouter from './api/routes/quote';
 import bundleRouter from './api/routes/bundle';
 import statusRouter from './api/routes/status';
@@ -20,8 +22,27 @@ const PORT = process.env.PORT ?? 3001;
 app.use(cors());
 app.use(express.json());
 
-app.use('/v1/quote', quoteRouter);
-app.use('/v1/bundle', bundleRouter);
+// 30 requests per minute per IP on sensitive endpoints
+const strictLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+});
+
+// 10 wallet creations per hour per IP
+const createLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many wallet creations from this IP.' },
+});
+
+app.use('/v1/quote', strictLimiter, quoteRouter);
+app.use('/v1/bundle', strictLimiter, bundleRouter);
+app.use('/v1/wallet/create', createLimiter);
 app.use('/v1/status', statusRouter);
 app.use('/v1/account', accountRouter);
 app.use('/v1/recovery', recoveryRouter);
@@ -121,12 +142,32 @@ async function start() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_quotes_wallet ON quotes(wallet_address);
+
+    CREATE TABLE IF NOT EXISTS incoming_transfers (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      wallet_address TEXT NOT NULL,
+      from_address TEXT NOT NULL,
+      amount TEXT NOT NULL,
+      asset_code TEXT NOT NULL,
+      asset_sac_id TEXT NOT NULL,
+      tx_hash TEXT,
+      ledger INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(asset_sac_id, ledger, from_address, wallet_address, amount)
+    );
+    CREATE INDEX IF NOT EXISTS idx_incoming_transfers_wallet ON incoming_transfers(wallet_address);
+
+    CREATE TABLE IF NOT EXISTS event_sync_cursors (
+      sac_id TEXT PRIMARY KEY,
+      last_ledger INTEGER NOT NULL DEFAULT 0
+    );
   `);
   console.log('[relay] Migrations done.');
 
   app.listen(PORT, () => {
     console.log(`[relay] Listening on port ${PORT}`);
     startFlushWorker();
+    startEventSyncWorker();
   });
 }
 

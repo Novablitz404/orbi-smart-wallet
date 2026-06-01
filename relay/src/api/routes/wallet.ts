@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { Address, Contract, TransactionBuilder, BASE_FEE } from '@stellar/stellar-sdk';
+import { Address, Contract, TransactionBuilder, BASE_FEE, xdr } from '@stellar/stellar-sdk';
 import { pool } from '../../lib/db';
 import { deriveWalletAddress, deployWallet } from '../../lib/wallet';
 import { getServer, getNativeSacId, getDeployerKeypair, getPassphrase } from '../../lib/stellar';
+import { getSacToCodeMap } from '../../lib/tokens';
 
 const router = Router();
 
@@ -176,6 +177,98 @@ router.post('/lookup', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[wallet/lookup]', err);
     return res.status(500).json({ error: 'Lookup failed' });
+  }
+});
+
+/**
+ * GET /v1/wallet/history/:walletAddress
+ * Returns merged outgoing (pending_ops) + incoming (incoming_transfers) transactions.
+ */
+router.get('/history/:walletAddress', async (req: Request, res: Response) => {
+  const { walletAddress } = req.params;
+  if (!walletAddress) return res.status(400).json({ error: 'walletAddress required' });
+
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
+  const fetchCount = page * limit + 1; // +1 to detect hasMore
+
+  try {
+    const sacToCode = getSacToCodeMap();
+
+    const { rows: ops } = await pool.query(
+      `SELECT id, contract_id, function_name, args_xdr, status, tx_hash, created_at
+       FROM pending_ops
+       WHERE wallet_address = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [walletAddress, fetchCount],
+    );
+
+    const outgoing = ops.map((op: any) => {
+      const base: any = {
+        id: op.id,
+        direction: 'outgoing',
+        contractId: op.contract_id,
+        functionName: op.function_name,
+        status: op.status,
+        txHash: op.tx_hash ?? null,
+        createdAt: op.created_at,
+      };
+
+      if (op.function_name === 'transfer') {
+        try {
+          const args: string[] = op.args_xdr;
+          const toVal = xdr.ScVal.fromXDR(args[1], 'base64');
+          const amountVal = xdr.ScVal.fromXDR(args[2], 'base64');
+          const lo = BigInt(amountVal.i128().lo().toString());
+          const hi = BigInt(amountVal.i128().hi().toString());
+          base.type = 'transfer';
+          base.to = Address.fromScVal(toVal).toString();
+          base.amount = (hi * (2n ** 64n) + lo).toString();
+          base.assetCode = sacToCode.get(op.contract_id) ?? 'unknown';
+        } catch {
+          base.type = 'transfer';
+        }
+      } else {
+        base.type = 'contract_call';
+      }
+
+      return base;
+    });
+
+    const { rows: incoming } = await pool.query(
+      `SELECT id, from_address, amount, asset_code, tx_hash, ledger, created_at
+       FROM incoming_transfers
+       WHERE wallet_address = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [walletAddress, fetchCount],
+    );
+
+    const incomingMapped = incoming.map((t: any) => ({
+      id: t.id,
+      direction: 'incoming',
+      type: 'transfer',
+      assetCode: t.asset_code,
+      amount: t.amount,
+      from: t.from_address,
+      txHash: t.tx_hash ?? null,
+      status: 'confirmed',
+      createdAt: t.created_at,
+    }));
+
+    const all = [...outgoing, ...incomingMapped].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+
+    const offset = (page - 1) * limit;
+    const hasMore = all.length > offset + limit;
+    const transactions = all.slice(offset, offset + limit);
+
+    return res.json({ transactions, hasMore, page });
+  } catch (err: any) {
+    console.error('[wallet/history]', err);
+    return res.status(500).json({ error: 'History query failed' });
   }
 });
 

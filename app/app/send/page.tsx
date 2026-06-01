@@ -5,13 +5,14 @@ import { useRouter } from 'next/navigation';
 import { Address, Networks, Asset, nativeToScVal } from '@stellar/stellar-sdk';
 import { xdr } from '@stellar/stellar-sdk';
 import { loadWallet } from '../../lib/storage';
+import { STELLAR_TOKENS, tokenLetterAvatar, XLM_ICON, stellarExpertIcon } from '../../lib/tokens';
 import BackButton from '../../components/BackButton';
 
 const RELAY_URL = process.env.NEXT_PUBLIC_RELAY_URL;
 const KEYS_URL = 'https://keys.orbiwallet.xyz';
-const STROOPS_PER_XLM = 10_000_000;
 const NETWORK_PASSPHRASE =
   process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet' ? Networks.PUBLIC : Networks.TESTNET;
+const NATIVE_SAC_ID = Asset.native().contractId(NETWORK_PASSPHRASE);
 
 type Step = 'form' | 'quoting' | 'confirm' | 'signing' | 'error';
 
@@ -24,6 +25,16 @@ interface Quote {
   nativeSacId: string;
 }
 
+interface SendToken {
+  code: string;
+  name: string;
+  sacId: string;
+  decimals: number;
+  iconSrc: string;
+}
+
+const XLM_TOKEN: SendToken = { code: 'XLM', name: 'Stellar', sacId: NATIVE_SAC_ID, decimals: 7, iconSrc: XLM_ICON };
+
 export default function SendPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('form');
@@ -32,18 +43,50 @@ export default function SendPage() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [error, setError] = useState('');
   const [wallet, setWallet] = useState<ReturnType<typeof loadWallet>>(null);
+  const [selectedToken, setSelectedToken] = useState<SendToken>(XLM_TOKEN);
+  const [tokenSelectorOpen, setTokenSelectorOpen] = useState(false);
+  const [tokenBalances, setTokenBalances] = useState<Record<string, string>>({});
+  const [xlmBalance, setXlmBalance] = useState<string | null>(null);
 
   useEffect(() => {
     const w = loadWallet();
     if (!w) { router.replace('/'); return; }
     setWallet(w);
+
+    fetch(`${RELAY_URL}/v1/wallet/balance/${w.walletAddress}`)
+      .then(r => r.json()).then((d: { xlm?: string }) => setXlmBalance(d.xlm ?? '0'))
+      .catch(() => {});
+
+    Promise.all(
+      STELLAR_TOKENS.map(token =>
+        fetch(`${RELAY_URL}/v1/wallet/token-balance/${w.walletAddress}/${token.sacId}`)
+          .then(r => r.json())
+          .then((d: { balance?: string }) => ({ sacId: token.sacId, balance: d.balance ?? '0' }))
+          .catch(() => ({ sacId: token.sacId, balance: '0' }))
+      )
+    ).then(results => {
+      const map: Record<string, string> = {};
+      results.forEach(({ sacId, balance }) => { map[sacId] = balance; });
+      setTokenBalances(map);
+    });
   }, [router]);
 
-  function buildTransferArgs(from: string, recipient: string, stroops: number): xdr.ScVal[] {
+  function getAvailableTokens(): SendToken[] {
+    const tokens: SendToken[] = [XLM_TOKEN];
+    for (const t of STELLAR_TOKENS) {
+      const raw = tokenBalances[t.sacId] ?? '0';
+      if (BigInt(raw) > 0n) {
+        tokens.push({ code: t.code, name: t.name, sacId: t.sacId, decimals: t.decimals, iconSrc: stellarExpertIcon(t.code, t.issuer) });
+      }
+    }
+    return tokens;
+  }
+
+  function buildTransferArgs(from: string, recipient: string, units: number): xdr.ScVal[] {
     return [
       new Address(from).toScVal(),
       new Address(recipient).toScVal(),
-      nativeToScVal(BigInt(stroops), { type: 'i128' }),
+      nativeToScVal(BigInt(units), { type: 'i128' }),
     ];
   }
 
@@ -53,9 +96,8 @@ export default function SendPage() {
     setError('');
 
     try {
-      const amountStroops = Math.round(parseFloat(amount) * STROOPS_PER_XLM);
-      const nativeSacId = Asset.native().contractId(NETWORK_PASSPHRASE);
-      const args = buildTransferArgs(wallet.walletAddress, to, amountStroops);
+      const amountUnits = Math.round(parseFloat(amount) * 10 ** selectedToken.decimals);
+      const args = buildTransferArgs(wallet.walletAddress, to, amountUnits);
       const argsXdr = args.map(a => Buffer.from(a.toXDR()).toString('base64'));
 
       const res = await fetch(`${RELAY_URL}/v1/quote`, {
@@ -63,7 +105,7 @@ export default function SendPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           walletAddress: wallet.walletAddress,
-          contractId: nativeSacId,
+          contractId: selectedToken.sacId,
           functionName: 'transfer',
           argsXdr,
         }),
@@ -86,29 +128,24 @@ export default function SendPage() {
     if (!wallet || !quote) return;
     setStep('signing');
 
-    const amountStroops = Math.round(parseFloat(amount) * STROOPS_PER_XLM);
-    const argsXdrRaw = buildTransferArgs(wallet.walletAddress, to, amountStroops)
+    const amountUnits = Math.round(parseFloat(amount) * 10 ** selectedToken.decimals);
+    const argsXdrRaw = buildTransferArgs(wallet.walletAddress, to, amountUnits)
       .map(a => Buffer.from(a.toXDR()).toString('base64'));
 
     const params = new URLSearchParams({
       redirect: 'https://account.orbiwallet.xyz/sign-callback',
       origin: window.location.origin,
       walletAddress: wallet.walletAddress,
-      contractId: quote.nativeSacId,
+      contractId: selectedToken.sacId,
       functionName: 'transfer',
       argsXdr: JSON.stringify(argsXdrRaw),
     });
     window.location.href = `${KEYS_URL}/sign?${params}`;
-
-    // eslint-disable-next-line no-unreachable -- kept to satisfy TS flow
-    try {
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Send failed');
-      setStep('error');
-    }
   }
 
   if (!wallet) return null;
+
+  const availableTokens = getAvailableTokens();
 
   return (
     <main className="flex flex-col min-h-screen bg-[#020817] px-4">
@@ -119,6 +156,52 @@ export default function SendPage() {
 
       {(step === 'form' || step === 'quoting' || step === 'confirm') && (
         <div className="flex flex-col gap-4">
+
+          {/* Token selector */}
+          <div className="relative">
+            <button
+              onClick={() => step === 'form' && setTokenSelectorOpen(o => !o)}
+              disabled={step !== 'form'}
+              className="flex items-center justify-between w-full p-3 rounded-xl bg-slate-800 border border-slate-700 hover:border-slate-600 transition-colors disabled:opacity-60"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-slate-700 overflow-hidden">
+                  <img src={selectedToken.iconSrc} alt={selectedToken.code} className="w-full h-full object-cover"
+                    onError={e => { (e.target as HTMLImageElement).src = tokenLetterAvatar(selectedToken.code); }} />
+                </div>
+                <div className="text-left">
+                  <p className="text-white text-sm font-medium">{selectedToken.name}</p>
+                  <p className="text-slate-500 text-xs">{selectedToken.code}</p>
+                </div>
+              </div>
+              <svg className={`w-4 h-4 text-slate-500 transition-transform ${tokenSelectorOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+            </button>
+
+            {tokenSelectorOpen && (
+              <div className="absolute top-full mt-1 left-0 right-0 bg-slate-900 border border-slate-700/50 rounded-xl overflow-hidden shadow-xl z-10">
+                {availableTokens.map(token => (
+                  <button
+                    key={token.sacId}
+                    onClick={() => { setSelectedToken(token); setAmount(''); setTokenSelectorOpen(false); }}
+                    className={`flex items-center gap-3 w-full px-4 py-3 hover:bg-slate-800 transition-colors text-left ${selectedToken.sacId === token.sacId ? 'bg-slate-800/60' : ''}`}
+                  >
+                    <div className="w-7 h-7 rounded-full bg-slate-700 overflow-hidden flex-shrink-0">
+                      <img src={token.iconSrc} alt={token.code} className="w-full h-full object-cover"
+                        onError={e => { (e.target as HTMLImageElement).src = tokenLetterAvatar(token.code); }} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-white text-sm font-medium">{token.name}</p>
+                      <p className="text-slate-500 text-xs">{token.code}</p>
+                    </div>
+                    {selectedToken.sacId === token.sacId && (
+                      <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex flex-col gap-2">
             <label className="text-slate-400 text-sm">To</label>
             <input
@@ -132,7 +215,7 @@ export default function SendPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-slate-400 text-sm">Amount (XLM)</label>
+            <label className="text-slate-400 text-sm">Amount ({selectedToken.code})</label>
             <input
               type="number"
               placeholder="0.00"
@@ -172,17 +255,6 @@ export default function SendPage() {
               Send with Face ID
             </button>
           )}
-        </div>
-      )}
-
-      {step === 'signing' && (
-        <div className="flex flex-col items-center gap-4 py-16">
-          <svg className="animate-spin w-10 h-10 text-blue-400" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
-          <p className="text-white font-semibold">Waiting for Face ID…</p>
-          <p className="text-slate-400 text-sm text-center">Signing fee + transfer in one prompt</p>
         </div>
       )}
 
