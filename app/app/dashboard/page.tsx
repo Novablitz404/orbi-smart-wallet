@@ -274,7 +274,7 @@ export default function DashboardPage() {
       </aside>
 
       {/* ── Main content ── */}
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col overflow-hidden md:overflow-visible">
         {/* Top bar */}
         <div className="hidden md:flex items-center justify-end px-10 pt-6 pb-2">
           <div className="relative" ref={dropdownRef}>
@@ -358,7 +358,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="px-6 md:px-10 py-6 pb-24 md:pb-6 flex-1">
+        <div className="px-6 md:px-10 py-6 pb-4 flex-1 overflow-y-auto md:overflow-visible min-h-0">
           <div className="mb-4 text-left">
             <p className="text-slate-400 text-base mb-1">Your balance:</p>
             <p className="text-5xl md:text-6xl font-bold text-white">
@@ -540,8 +540,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Mobile bottom nav - fixed so it's always visible */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 border-t border-slate-800 bg-[#020817] px-4 py-3 flex justify-around z-30">
+        {/* Mobile bottom nav - always in-flow at bottom of the flex column */}
+        <div className="md:hidden shrink-0 border-t border-slate-800 bg-[#020817] px-4 py-3 flex justify-around">
           {[{ id: 'assets', label: 'Assets' }, { id: 'activity', label: 'Activity' }, { id: 'apps', label: 'Apps' }].map(({ id, label }) => (
             <button key={id} onClick={() => setActiveNav(id)} className={`text-xs font-medium px-4 py-1.5 rounded-lg transition-colors ${activeNav === id ? 'text-white bg-slate-800' : 'text-slate-500'}`}>{label}</button>
           ))}
