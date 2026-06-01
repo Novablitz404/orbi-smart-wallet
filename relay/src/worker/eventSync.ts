@@ -6,8 +6,10 @@ import { pool } from '../lib/db';
 
 const SYNC_INTERVAL_MS = 30_000;
 const EVENT_LIMIT = 200;
-// How many ledgers to backfill on first sync (~7 days worth at ~5s/ledger)
-const INITIAL_BACKFILL_LEDGERS = 120_960;
+// How many ledgers to backfill on first sync. The testnet RPC retains ~120,960
+// ledgers (~7 days); we stay safely inside that so a cold-start backfill never
+// races the retention boundary as ledgers close during the scan.
+const INITIAL_BACKFILL_LEDGERS = 100_000;
 
 let isSyncing = false;
 
