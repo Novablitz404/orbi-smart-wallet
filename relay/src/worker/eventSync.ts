@@ -56,63 +56,82 @@ async function syncEvents(): Promise<void> {
     const currentLedger = latestLedger.sequence;
 
     for (const token of tokens) {
-      const { rows: cursorRows } = await pool.query(
-        `SELECT last_ledger FROM event_sync_cursors WHERE sac_id = $1`,
-        [token.sacId],
-      );
+      // One token failing (e.g. a stale backfill window) must not abort the rest.
+      try {
+        const { rows: cursorRows } = await pool.query(
+          `SELECT last_ledger FROM event_sync_cursors WHERE sac_id = $1`,
+          [token.sacId],
+        );
 
-      const lastLedger = cursorRows.length > 0
-        ? cursorRows[0].last_ledger
-        : Math.max(1, currentLedger - INITIAL_BACKFILL_LEDGERS);
+        const lastLedger = cursorRows.length > 0
+          ? cursorRows[0].last_ledger
+          : Math.max(1, currentLedger - INITIAL_BACKFILL_LEDGERS);
 
-      const startLedger = lastLedger + 1;
-      if (startLedger > currentLedger) continue;
+        let startLedger = lastLedger + 1;
+        if (startLedger > currentLedger) continue;
 
-      let cursor: string | undefined;
-      let hasMore = true;
+        let cursor: string | undefined;
+        let hasMore = true;
 
-      while (hasMore) {
-        const params = cursor
-          ? { filters: [{ type: 'contract' as const, contractIds: [token.sacId] }], cursor, limit: EVENT_LIMIT }
-          : { filters: [{ type: 'contract' as const, contractIds: [token.sacId] }], startLedger, limit: EVENT_LIMIT };
+        while (hasMore) {
+          const params = cursor
+            ? { filters: [{ type: 'contract' as const, contractIds: [token.sacId] }], cursor, limit: EVENT_LIMIT }
+            : { filters: [{ type: 'contract' as const, contractIds: [token.sacId] }], startLedger, limit: EVENT_LIMIT };
 
-        const response = await server.getEvents(params);
+          let response;
+          try {
+            response = await server.getEvents(params);
+          } catch (err: any) {
+            // startLedger older than the RPC's retention window — clamp and retry once.
+            if (!cursor && /startLedger|ledger/i.test(String(err?.message))) {
+              startLedger = Math.max(startLedger, currentLedger - 17_280); // ~24h
+              response = await server.getEvents({
+                filters: [{ type: 'contract' as const, contractIds: [token.sacId] }],
+                startLedger, limit: EVENT_LIMIT,
+              });
+            } else {
+              throw err;
+            }
+          }
 
-        for (const event of response.events) {
-          // SAC transfer topics: [Symbol("transfer"), Address(from), Address(to)]
-          if (event.topic.length < 3) continue;
+          for (const event of response.events) {
+            // SAC transfer topics: [Symbol("transfer"), Address(from), Address(to)]
+            if (event.topic.length < 3) continue;
 
-          const sym = event.topic[0];
-          if (sym.switch().name !== 'scvSymbol') continue;
-          if (sym.sym().toString() !== 'transfer') continue;
+            const sym = event.topic[0];
+            if (sym.switch().name !== 'scvSymbol') continue;
+            if (sym.sym().toString() !== 'transfer') continue;
 
-          const toAddress = decodeAddress(event.topic[2]);
-          if (!toAddress || !knownWallets.has(toAddress)) continue;
+            const toAddress = decodeAddress(event.topic[2]);
+            if (!toAddress || !knownWallets.has(toAddress)) continue;
 
-          const fromAddress = decodeAddress(event.topic[1]) ?? 'unknown';
-          const amount = decodeI128(event.value);
+            const fromAddress = decodeAddress(event.topic[1]) ?? 'unknown';
+            const amount = decodeI128(event.value);
 
-          await pool.query(
-            `INSERT INTO incoming_transfers
-              (wallet_address, from_address, amount, asset_code, asset_sac_id, tx_hash, ledger)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT (asset_sac_id, ledger, from_address, wallet_address, amount) DO NOTHING`,
-            [toAddress, fromAddress, amount, token.code, token.sacId, event.txHash ?? null, event.ledger],
-          );
+            await pool.query(
+              `INSERT INTO incoming_transfers
+                (wallet_address, from_address, amount, asset_code, asset_sac_id, tx_hash, ledger)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (asset_sac_id, ledger, from_address, wallet_address, amount) DO NOTHING`,
+              [toAddress, fromAddress, amount, token.code, token.sacId, event.txHash ?? null, event.ledger],
+            );
+          }
+
+          const events = response.events;
+          hasMore = events.length === EVENT_LIMIT;
+          cursor = hasMore ? events[events.length - 1].id : undefined;
+          if (!cursor) break;
         }
 
-        const events = response.events;
-        hasMore = events.length === EVENT_LIMIT;
-        cursor = hasMore ? events[events.length - 1].id : undefined;
-        if (!cursor) break;
+        await pool.query(
+          `INSERT INTO event_sync_cursors (sac_id, last_ledger)
+           VALUES ($1, $2)
+           ON CONFLICT (sac_id) DO UPDATE SET last_ledger = EXCLUDED.last_ledger`,
+          [token.sacId, currentLedger],
+        );
+      } catch (tokenErr) {
+        console.error(`[eventSync] token ${token.code} (${token.sacId}) failed:`, tokenErr);
       }
-
-      await pool.query(
-        `INSERT INTO event_sync_cursors (sac_id, last_ledger)
-         VALUES ($1, $2)
-         ON CONFLICT (sac_id) DO UPDATE SET last_ledger = EXCLUDED.last_ledger`,
-        [token.sacId, currentLedger],
-      );
     }
   } catch (err) {
     console.error('[eventSync] Error:', err);
