@@ -13,7 +13,7 @@ export async function sendRecoveryOtp(to: string, otp: string): Promise<void> {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      from: 'Orbi Wallet <recovery@orbi.xyz>',
+      from: 'Orbi Wallet <recovery@orbiwallet.xyz>',
       to,
       subject: 'Your Orbi Wallet recovery code',
       html: `
