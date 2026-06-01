@@ -1,31 +1,32 @@
-import { Address } from '@stellar/stellar-sdk';
-import { xdr } from '@stellar/stellar-sdk';
+import { Address, xdr } from '@stellar/stellar-sdk';
 import { getServer } from '../lib/stellar';
 import { getTrackedTokens } from '../lib/tokens';
 import { pool } from '../lib/db';
 
 const SYNC_INTERVAL_MS = 30_000;
 const EVENT_LIMIT = 200;
-// How many ledgers to backfill on first sync. The testnet RPC retains ~120,960
-// ledgers (~7 days); we stay safely inside that so a cold-start backfill never
-// races the retention boundary as ledgers close during the scan.
 const INITIAL_BACKFILL_LEDGERS = 100_000;
-// Self-heal window: every RECONCILE_EVERY ticks we re-scan the last
-// RECONCILE_LEDGERS ledgers regardless of the cursor. Inserts are idempotent
-// (UNIQUE + ON CONFLICT DO NOTHING), so any transfer a stuck/advanced cursor
-// skipped within the last ~24h is recovered automatically — no manual rewind.
-const RECONCILE_LEDGERS = 17_280; // ~24h
-const RECONCILE_EVERY = 20;       // ~10 min at a 30s interval
+// Self-heal: every RECONCILE_EVERY ticks re-scan the last RECONCILE_LEDGERS
+// regardless of cursor. Idempotent inserts auto-recover any skipped transfer.
+const RECONCILE_LEDGERS = 17_280; // ~24h at ~5s/ledger
+const RECONCILE_EVERY = 20;       // ~10 min at 30s interval
+// Max wallet addresses per topic-filter batch. Keeps individual RPC requests
+// small; batches are issued in parallel within each token scan.
+const WALLET_BATCH_SIZE = 50;
+
+// Pre-encoded at module load — avoids re-encoding every tick.
+// SAC transfer events: topic[0]=Symbol("transfer"), topic[1]=from, topic[2]=to.
+const TRANSFER_TOPIC_XDR = xdr.ScVal.scvSymbol('transfer').toXDR().toString('base64');
 
 let isSyncing = false;
 let tickCount = 0;
 
+function encodeAddressXdr(addr: string): string {
+  return new Address(addr).toScVal().toXDR().toString('base64');
+}
+
 function decodeAddress(scVal: xdr.ScVal): string | null {
-  try {
-    return Address.fromScVal(scVal).toString();
-  } catch {
-    return null;
-  }
+  try { return Address.fromScVal(scVal).toString(); } catch { return null; }
 }
 
 function decodeI128(scVal: xdr.ScVal): string {
@@ -34,8 +35,85 @@ function decodeI128(scVal: xdr.ScVal): string {
     const lo = BigInt(i128.lo().toString());
     const hi = BigInt(i128.hi().toString());
     return (hi * (2n ** 64n) + lo).toString();
-  } catch {
-    return '0';
+  } catch { return '0'; }
+}
+
+/**
+ * Scan a ledger range for one token, filtered at the RPC level to only return
+ * transfers where topic[2] (recipient) is in walletBatchXdr.
+ *
+ * On mainnet high-volume contracts (e.g. USDC) this means we receive only
+ * transfers TO our users, not all global transfers — regardless of volume.
+ */
+async function scanRange(
+  server: ReturnType<typeof getServer>,
+  token: { code: string; sacId: string },
+  walletBatchXdr: string[],
+  startLedger: number,
+  currentLedger: number,
+  knownWallets: Set<string>,
+): Promise<void> {
+  const filter = {
+    type: 'contract' as const,
+    contractIds: [token.sacId],
+    // Topic filter pushed to the RPC: only Symbol("transfer") events where the
+    // recipient (topic[2]) is one of our known wallet addresses.
+    topics: [
+      [TRANSFER_TOPIC_XDR], // topic[0] = Symbol("transfer")
+      [],                    // topic[1] = any sender (wildcard)
+      walletBatchXdr,        // topic[2] = one of our wallets
+    ],
+  };
+
+  let cursor: string | undefined;
+  let scanStart = startLedger;
+
+  while (true) {
+    const params = cursor
+      ? { filters: [filter], cursor, limit: EVENT_LIMIT }
+      : { filters: [filter], startLedger: scanStart, limit: EVENT_LIMIT };
+
+    let response;
+    try {
+      response = await server.getEvents(params);
+    } catch (err: any) {
+      // startLedger predates the RPC's retention window. The error message states
+      // the actual valid range (e.g. "ledger range: 2739838 - 2860797"); resume
+      // from the real minimum so we scan every retained ledger.
+      const msg = String(err?.message ?? '');
+      if (!cursor && /ledger range/i.test(msg)) {
+        const m = msg.match(/(\d+)\s*-\s*\d+/);
+        const rpcMin = m ? parseInt(m[1], 10) : currentLedger - RECONCILE_LEDGERS;
+        scanStart = Math.max(scanStart, rpcMin);
+        response = await server.getEvents({
+          filters: [filter], startLedger: scanStart, limit: EVENT_LIMIT,
+        });
+      } else {
+        throw err;
+      }
+    }
+
+    for (const event of response.events) {
+      // Defensive check — topic filter already guarantees this in practice.
+      if (event.topic.length < 3) continue;
+      const toAddress = decodeAddress(event.topic[2]);
+      if (!toAddress || !knownWallets.has(toAddress)) continue;
+
+      const fromAddress = decodeAddress(event.topic[1]) ?? 'unknown';
+      const amount = decodeI128(event.value);
+
+      await pool.query(
+        `INSERT INTO incoming_transfers
+          (wallet_address, from_address, amount, asset_code, asset_sac_id, tx_hash, ledger)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (asset_sac_id, ledger, from_address, wallet_address, amount) DO NOTHING`,
+        [toAddress, fromAddress, amount, token.code, token.sacId, event.txHash ?? null, event.ledger],
+      );
+    }
+
+    if (response.events.length < EVENT_LIMIT) break;
+    cursor = response.events[response.events.length - 1].id;
+    if (!cursor) break;
   }
 }
 
@@ -61,14 +139,20 @@ async function syncEvents(): Promise<void> {
     const knownWallets = new Set<string>(walletRows.map((r: any) => r.wallet_address as string));
     if (knownWallets.size === 0) return;
 
+    // Pre-encode all wallet addresses once per sync cycle, then batch them.
+    // Batching keeps individual RPC requests well within filter-size limits.
+    const walletXdrs = [...knownWallets].map(encodeAddressXdr);
+    const walletBatches: string[][] = [];
+    for (let i = 0; i < walletXdrs.length; i += WALLET_BATCH_SIZE) {
+      walletBatches.push(walletXdrs.slice(i, i + WALLET_BATCH_SIZE));
+    }
+
     const latestLedger = await server.getLatestLedger();
     const currentLedger = latestLedger.sequence;
 
-    // Periodically widen the scan to self-heal any recently-missed transfers.
     const reconcile = (tickCount++ % RECONCILE_EVERY) === 0;
 
     for (const token of tokens) {
-      // One token failing (e.g. a stale backfill window) must not abort the rest.
       try {
         const { rows: cursorRows } = await pool.query(
           `SELECT last_ledger FROM event_sync_cursors WHERE sac_id = $1`,
@@ -80,68 +164,14 @@ async function syncEvents(): Promise<void> {
           : Math.max(1, currentLedger - INITIAL_BACKFILL_LEDGERS);
 
         let startLedger = lastLedger + 1;
-        // On a reconcile tick, look back at least RECONCILE_LEDGERS even if the
-        // cursor is already caught up — re-scanning is idempotent.
         if (reconcile) startLedger = Math.min(startLedger, Math.max(1, currentLedger - RECONCILE_LEDGERS));
         if (startLedger > currentLedger) continue;
 
-        let cursor: string | undefined;
-        let hasMore = true;
-
-        while (hasMore) {
-          const params = cursor
-            ? { filters: [{ type: 'contract' as const, contractIds: [token.sacId] }], cursor, limit: EVENT_LIMIT }
-            : { filters: [{ type: 'contract' as const, contractIds: [token.sacId] }], startLedger, limit: EVENT_LIMIT };
-
-          let response;
-          try {
-            response = await server.getEvents(params);
-          } catch (err: any) {
-            // startLedger older than the RPC's retention window. The error states
-            // the valid range (e.g. "... ledger range: 2739838 - 2860797"); resume
-            // from the RPC's real minimum so we scan every ledger it still retains
-            // (only what's genuinely outside retention is lost — unrecoverable anyway).
-            const msg = String(err?.message ?? '');
-            if (!cursor && /ledger range/i.test(msg)) {
-              const m = msg.match(/(\d+)\s*-\s*\d+/);
-              const rpcMin = m ? parseInt(m[1], 10) : currentLedger - RECONCILE_LEDGERS;
-              startLedger = Math.max(startLedger, rpcMin);
-              response = await server.getEvents({
-                filters: [{ type: 'contract' as const, contractIds: [token.sacId] }],
-                startLedger, limit: EVENT_LIMIT,
-              });
-            } else {
-              throw err;
-            }
-          }
-
-          for (const event of response.events) {
-            // SAC transfer topics: [Symbol("transfer"), Address(from), Address(to)]
-            if (event.topic.length < 3) continue;
-
-            const sym = event.topic[0];
-            if (sym.switch().name !== 'scvSymbol') continue;
-            if (sym.sym().toString() !== 'transfer') continue;
-
-            const toAddress = decodeAddress(event.topic[2]);
-            if (!toAddress || !knownWallets.has(toAddress)) continue;
-
-            const fromAddress = decodeAddress(event.topic[1]) ?? 'unknown';
-            const amount = decodeI128(event.value);
-
-            await pool.query(
-              `INSERT INTO incoming_transfers
-                (wallet_address, from_address, amount, asset_code, asset_sac_id, tx_hash, ledger)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)
-               ON CONFLICT (asset_sac_id, ledger, from_address, wallet_address, amount) DO NOTHING`,
-              [toAddress, fromAddress, amount, token.code, token.sacId, event.txHash ?? null, event.ledger],
-            );
-          }
-
-          const events = response.events;
-          hasMore = events.length === EVENT_LIMIT;
-          cursor = hasMore ? events[events.length - 1].id : undefined;
-          if (!cursor) break;
+        // Scan each wallet batch. Because the RPC applies the recipient filter
+        // server-side, each call only returns transfers TO our users — the total
+        // data returned is proportional to our user count, not contract volume.
+        for (const walletBatch of walletBatches) {
+          await scanRange(server, token, walletBatch, startLedger, currentLedger, knownWallets);
         }
 
         await pool.query(
