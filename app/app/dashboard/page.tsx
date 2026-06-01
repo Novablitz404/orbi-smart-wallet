@@ -358,12 +358,17 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="px-6 md:px-10 py-6 flex-1">
-          <div className="mb-8 text-right md:text-left">
+        <div className="px-6 md:px-10 py-6 pb-24 md:pb-6 flex-1">
+          <div className="mb-4 text-left">
             <p className="text-slate-400 text-base mb-1">Your balance:</p>
             <p className="text-5xl md:text-6xl font-bold text-white">
               {usdValue === null ? <span className="animate-pulse text-slate-600">$···</span> : `$${usdValue.toFixed(2)}`}
             </p>
+          </div>
+
+          <div className="md:hidden flex gap-3 mb-6">
+            <button onClick={() => openPanel('send')} className="flex-1 py-3 rounded-2xl bg-white text-slate-900 font-semibold text-sm">Send</button>
+            <button onClick={() => openPanel('receive')} className="flex-1 py-3 rounded-2xl bg-slate-800 border border-slate-700 text-white font-semibold text-sm">Receive</button>
           </div>
 
           {activeNav === 'assets' && (
@@ -372,12 +377,12 @@ export default function DashboardPage() {
                 <h2 className="text-white font-medium">Coins</h2>
                 <span className="text-xs text-slate-500 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/50">Stellar Testnet</span>
               </div>
-              <div className="grid grid-cols-4 px-4 pb-2 border-b border-slate-800 text-slate-500 text-xs font-medium">
+              <div className="grid grid-cols-2 md:grid-cols-4 px-4 pb-2 border-b border-slate-800 text-slate-500 text-xs font-medium">
                 <span>Asset</span><span className="text-right">Balance</span>
                 <span className="text-right hidden md:block">Portfolio %</span>
                 <span className="text-right hidden md:block">Price</span>
               </div>
-              <div className="grid grid-cols-4 px-4 py-4 items-center hover:bg-slate-800/20 transition-colors rounded-xl">
+              <div className="grid grid-cols-2 md:grid-cols-4 px-4 py-4 items-center hover:bg-slate-800/20 transition-colors rounded-xl">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0">
                     <img src={XLM_ICON} alt="XLM" className="w-full h-full object-cover"
@@ -398,7 +403,7 @@ export default function DashboardPage() {
                 const balance = rawBalance ? (Number(BigInt(rawBalance)) / 10 ** token.decimals) : 0;
                 if (balance === 0) return null;
                 return (
-                  <div key={token.sacId} className="grid grid-cols-4 px-4 py-4 items-center hover:bg-slate-800/20 transition-colors rounded-xl">
+                  <div key={token.sacId} className="grid grid-cols-2 md:grid-cols-4 px-4 py-4 items-center hover:bg-slate-800/20 transition-colors rounded-xl">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0">
                         <img
@@ -535,8 +540,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Mobile bottom nav */}
-        <div className="md:hidden border-t border-slate-800 px-4 py-3 flex justify-around">
+        {/* Mobile bottom nav - fixed so it's always visible */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 border-t border-slate-800 bg-[#020817] px-4 py-3 flex justify-around z-30">
           {[{ id: 'assets', label: 'Assets' }, { id: 'activity', label: 'Activity' }, { id: 'apps', label: 'Apps' }].map(({ id, label }) => (
             <button key={id} onClick={() => setActiveNav(id)} className={`text-xs font-medium px-4 py-1.5 rounded-lg transition-colors ${activeNav === id ? 'text-white bg-slate-800' : 'text-slate-500'}`}>{label}</button>
           ))}
@@ -782,11 +787,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Mobile bottom Send/Receive buttons */}
-      <div className="md:hidden fixed bottom-16 left-0 right-0 flex gap-3 px-4 pb-2 z-30">
-        <button onClick={() => openPanel('send')} className="flex-1 py-3 rounded-2xl bg-white text-slate-900 font-semibold text-sm">Send</button>
-        <button onClick={() => openPanel('receive')} className="flex-1 py-3 rounded-2xl bg-slate-800 border border-slate-700 text-white font-semibold text-sm">Receive</button>
-      </div>
+
     </div>
   );
 }
