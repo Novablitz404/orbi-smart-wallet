@@ -115,6 +115,30 @@ export class OrbiClient {
     };
   }
 
+  /**
+   * Ask the user to add a token to their Orbi wallet so it shows in their balances.
+   * Mirrors MetaMask's wallet_watchAsset — useful right after a swap/purchase on a DEX.
+   * Redirects the user to Orbi to confirm; on return call handleWatchAssetCallback().
+   */
+  watchAsset(params: { contractId: string; redirectUrl: string; origin?: string }) {
+    const url = new URL(`${KEYS_URL}/watch-asset`);
+    url.searchParams.set('contractId', params.contractId);
+    url.searchParams.set('redirect', params.redirectUrl);
+    url.searchParams.set('origin', params.origin ?? window.location.origin);
+    window.location.href = url.toString();
+  }
+
+  /**
+   * Read the result of watchAsset() from the URL after the redirect back.
+   * Returns null if there's no watch-asset result in the URL.
+   */
+  handleWatchAssetCallback(): { contractId: string; added: boolean } | null {
+    const params = new URLSearchParams(window.location.search);
+    const contractId = params.get('watchedContractId');
+    if (!contractId) return null;
+    return { contractId, added: params.get('watched') === 'true' };
+  }
+
   // ── Relay API ───────────────────────────────────────────────────────────────
 
   /** Submit a signed operation to the Orbi relay for batching + on-chain execution. */

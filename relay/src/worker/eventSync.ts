@@ -36,7 +36,17 @@ async function syncEvents(): Promise<void> {
 
   try {
     const server = getServer();
-    const tokens = getTrackedTokens();
+
+    // Curated tokens + every token any wallet has added to their watch list.
+    const tokenMap = new Map<string, { code: string; sacId: string }>();
+    for (const t of getTrackedTokens()) tokenMap.set(t.sacId, t);
+    const { rows: watchedRows } = await pool.query(
+      `SELECT DISTINCT contract_id, code FROM watched_tokens`,
+    );
+    for (const w of watchedRows as any[]) {
+      if (!tokenMap.has(w.contract_id)) tokenMap.set(w.contract_id, { code: w.code, sacId: w.contract_id });
+    }
+    const tokens = [...tokenMap.values()];
 
     const { rows: walletRows } = await pool.query(`SELECT wallet_address FROM users`);
     const knownWallets = new Set<string>(walletRows.map((r: any) => r.wallet_address as string));

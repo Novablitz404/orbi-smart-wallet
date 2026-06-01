@@ -161,6 +161,19 @@ async function start() {
       sac_id TEXT PRIMARY KEY,
       last_ledger INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS watched_tokens (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      wallet_address TEXT NOT NULL,
+      contract_id TEXT NOT NULL,
+      code TEXT NOT NULL,
+      name TEXT NOT NULL DEFAULT '',
+      decimals INTEGER NOT NULL DEFAULT 7,
+      added_via TEXT NOT NULL DEFAULT 'manual',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(wallet_address, contract_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_watched_tokens_wallet ON watched_tokens(wallet_address);
   `);
   console.log('[relay] Migrations done.');
 

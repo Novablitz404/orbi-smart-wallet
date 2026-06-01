@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { Address, Contract, TransactionBuilder, BASE_FEE, xdr } from '@stellar/stellar-sdk';
+import { Address, Contract, TransactionBuilder, BASE_FEE, xdr, scValToNative, StrKey } from '@stellar/stellar-sdk';
 import { pool } from '../../lib/db';
 import { deriveWalletAddress, deployWallet } from '../../lib/wallet';
 import { getServer, getNativeSacId, getDeployerKeypair, getPassphrase } from '../../lib/stellar';
@@ -269,6 +269,136 @@ router.get('/history/:walletAddress', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[wallet/history]', err);
     return res.status(500).json({ error: 'History query failed' });
+  }
+});
+
+/** Simulate a no-arg read call on a contract and return the decoded ScVal. */
+async function simulateRead(contractId: string, fn: string): Promise<xdr.ScVal | null> {
+  const server = getServer();
+  const deployer = getDeployerKeypair();
+  const networkPassphrase = getPassphrase();
+  const contract = new Contract(contractId);
+  const account = await server.getAccount(deployer.publicKey());
+  const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase })
+    .addOperation(contract.call(fn))
+    .setTimeout(30)
+    .build();
+  const sim = await server.simulateTransaction(tx);
+  if ('error' in sim) return null;
+  return (sim as any).result?.retval ?? null;
+}
+
+/** Read symbol/name/decimals from any token contract via simulation (free, read-only). */
+async function fetchTokenMetadata(contractId: string): Promise<{ code: string; name: string; decimals: number } | null> {
+  try {
+    const [symVal, nameVal, decVal] = await Promise.all([
+      simulateRead(contractId, 'symbol'),
+      simulateRead(contractId, 'name'),
+      simulateRead(contractId, 'decimals'),
+    ]);
+    if (!symVal) return null; // not a token contract
+    const code = String(scValToNative(symVal));
+    const name = nameVal ? String(scValToNative(nameVal)) : code;
+    const decimals = decVal ? Number(scValToNative(decVal)) : 7;
+    return { code, name, decimals };
+  } catch (err) {
+    console.error('[wallet/token-metadata]', err);
+    return null;
+  }
+}
+
+/**
+ * GET /v1/wallet/token-metadata/:contractId
+ * Reads a token contract's symbol/name/decimals — used to preview a token before adding.
+ */
+router.get('/token-metadata/:contractId', async (req: Request, res: Response) => {
+  const { contractId } = req.params;
+  if (!StrKey.isValidContract(contractId)) {
+    return res.status(400).json({ error: 'Invalid contract address' });
+  }
+  const meta = await fetchTokenMetadata(contractId);
+  if (!meta) return res.status(404).json({ error: 'Not a token contract or no metadata' });
+  return res.json(meta);
+});
+
+/**
+ * GET /v1/wallet/tokens/:walletAddress
+ * Returns the wallet's manually/dApp-added tokens.
+ */
+router.get('/tokens/:walletAddress', async (req: Request, res: Response) => {
+  const { walletAddress } = req.params;
+  try {
+    const { rows } = await pool.query(
+      `SELECT contract_id, code, name, decimals, added_via
+       FROM watched_tokens WHERE wallet_address = $1 ORDER BY created_at ASC`,
+      [walletAddress],
+    );
+    return res.json({
+      tokens: rows.map((r: any) => ({
+        contractId: r.contract_id,
+        code: r.code,
+        name: r.name,
+        decimals: r.decimals,
+        addedVia: r.added_via,
+      })),
+    });
+  } catch (err: any) {
+    console.error('[wallet/tokens]', err);
+    return res.status(500).json({ error: 'Failed to load tokens' });
+  }
+});
+
+/**
+ * POST /v1/wallet/tokens
+ * Adds a token to a wallet's watch list. Body: { walletAddress, contractId, addedVia? }
+ * Fetches metadata server-side so the client can't spoof code/decimals.
+ */
+router.post('/tokens', async (req: Request, res: Response) => {
+  const { walletAddress, contractId, addedVia } = req.body ?? {};
+  if (!walletAddress || !contractId) {
+    return res.status(400).json({ error: 'walletAddress and contractId required' });
+  }
+  if (!StrKey.isValidContract(contractId)) {
+    return res.status(400).json({ error: 'Invalid contract address' });
+  }
+
+  try {
+    const meta = await fetchTokenMetadata(contractId);
+    if (!meta) return res.status(404).json({ error: 'Not a valid token contract' });
+
+    const via = addedVia === 'dapp' ? 'dapp' : 'manual';
+    await pool.query(
+      `INSERT INTO watched_tokens (wallet_address, contract_id, code, name, decimals, added_via)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (wallet_address, contract_id) DO UPDATE
+         SET code = EXCLUDED.code, name = EXCLUDED.name, decimals = EXCLUDED.decimals`,
+      [walletAddress, contractId, meta.code, meta.name, meta.decimals, via],
+    );
+
+    return res.status(201).json({
+      token: { contractId, code: meta.code, name: meta.name, decimals: meta.decimals, addedVia: via },
+    });
+  } catch (err: any) {
+    console.error('[wallet/tokens POST]', err);
+    return res.status(500).json({ error: 'Failed to add token' });
+  }
+});
+
+/**
+ * DELETE /v1/wallet/tokens/:walletAddress/:contractId
+ * Removes a token from a wallet's watch list.
+ */
+router.delete('/tokens/:walletAddress/:contractId', async (req: Request, res: Response) => {
+  const { walletAddress, contractId } = req.params;
+  try {
+    await pool.query(
+      `DELETE FROM watched_tokens WHERE wallet_address = $1 AND contract_id = $2`,
+      [walletAddress, contractId],
+    );
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error('[wallet/tokens DELETE]', err);
+    return res.status(500).json({ error: 'Failed to remove token' });
   }
 });
 
