@@ -255,8 +255,9 @@ export default function DashboardPage() {
               </div>
               <div className="grid grid-cols-4 px-4 py-4 items-center hover:bg-slate-800/20 transition-colors rounded-xl">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center">
-                    <img src={XLM_ICON} alt="XLM" className="w-full h-full object-cover" />
+                  <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0">
+                    <img src={XLM_ICON} alt="XLM" className="w-full h-full object-cover"
+                      onError={e => { (e.target as HTMLImageElement).src = tokenLetterAvatar('XLM'); }} />
                   </div>
                   <div><p className="text-white text-sm font-medium">Stellar</p><p className="text-slate-500 text-xs">XLM</p></div>
                 </div>
@@ -273,12 +274,13 @@ export default function DashboardPage() {
                 const rawBalance = tokenBalances[token.sacId] ?? null;
                 const balance = rawBalance ? (Number(BigInt(rawBalance)) / 10 ** token.decimals) : 0;
                 if (balance === 0) return null;
+                const stellarExpertIcon = `https://stellar.expert/img/assets/${token.code}-${token.issuer}.png`;
                 return (
                   <div key={token.sacId} className="grid grid-cols-4 px-4 py-4 items-center hover:bg-slate-800/20 transition-colors rounded-xl">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0">
                         <img
-                          src={token.icon}
+                          src={stellarExpertIcon}
                           alt={token.code}
                           className="w-full h-full object-cover"
                           onError={e => { (e.target as HTMLImageElement).src = tokenLetterAvatar(token.code); }}

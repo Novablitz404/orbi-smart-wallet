@@ -1,6 +1,7 @@
 /**
  * Known Stellar tokens with their SAC contract IDs and metadata.
- * Icons from CoinGecko CDN — reliable and covers all major tokens.
+ * Icons auto-loaded from Stellar Expert — covers all indexed Stellar tokens.
+ * Falls back to first-letter avatar for any token not indexed.
  */
 
 export interface StellarToken {
@@ -9,11 +10,15 @@ export interface StellarToken {
   issuer: string;
   sacId: string;
   decimals: number;
-  icon?: string;
   network: 'mainnet' | 'testnet' | 'both';
 }
 
+// XLM is native (no issuer) — use CoinMarketCap which has the proper Stellar logo
 export const XLM_ICON = 'https://s2.coinmarketcap.com/static/img/coins/64x64/512.png';
+
+// Stellar Expert pattern — works for any token they've indexed
+export const stellarExpertIcon = (code: string, issuer: string) =>
+  `https://stellar.expert/img/assets/${code}-${issuer}.png`;
 
 export const STELLAR_TOKENS: StellarToken[] = [
   {
@@ -22,7 +27,6 @@ export const STELLAR_TOKENS: StellarToken[] = [
     issuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVV',
     sacId: 'CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75',
     decimals: 7,
-    icon: 'https://assets.coingecko.com/coins/images/6319/large/usdc.png',
     network: 'mainnet',
   },
   {
@@ -31,7 +35,6 @@ export const STELLAR_TOKENS: StellarToken[] = [
     issuer: 'GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP',
     sacId: 'CAZAQB3D7KSLSNOSSCMNOURNQMX6OPAS2YSHRZNK2BQHB2MNSB5AJBLZ',
     decimals: 7,
-    icon: 'https://assets.coingecko.com/coins/images/26045/large/euro-coin.png',
     network: 'mainnet',
   },
   {
@@ -40,7 +43,6 @@ export const STELLAR_TOKENS: StellarToken[] = [
     issuer: 'GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA',
     sacId: 'CBXCLNUDRPNTQHSQ5AA4E3XBXMYCQZMFXWB2H4KZCTM7JB4CBYNPXLW',
     decimals: 7,
-    icon: 'https://stellar.expert/img/assets/AQUA-GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA.png',
     network: 'mainnet',
   },
   {
@@ -49,12 +51,11 @@ export const STELLAR_TOKENS: StellarToken[] = [
     issuer: 'GARDNV3Q7YGT4AKSDF25LT32YSCCW4EV22Y2TV3I2PU2MMXJTEDL5T55',
     sacId: 'CBLGBM7PNYLPUDBLPHZUZQGWGUBFQTQMQXWXMIXGDOCQXV7YSRGKBWB',
     decimals: 7,
-    icon: 'https://stellar.expert/img/assets/yXLM-GARDNV3Q7YGT4AKSDF25LT32YSCCW4EV22Y2TV3I2PU2MMXJTEDL5T55.png',
     network: 'mainnet',
   },
 ];
 
-/** Generate a colored first-letter SVG avatar for tokens without a working icon. */
+/** Generate a colored first-letter SVG avatar for tokens not indexed by Stellar Expert. */
 export function tokenLetterAvatar(code: string): string {
   const colors = [
     '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b',
