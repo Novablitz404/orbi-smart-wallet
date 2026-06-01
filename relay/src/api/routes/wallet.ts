@@ -3,9 +3,32 @@ import { Address, Contract, TransactionBuilder, BASE_FEE, xdr, scValToNative, St
 import { pool } from '../../lib/db';
 import { deriveWalletAddress, deployWallet } from '../../lib/wallet';
 import { getServer, getNativeSacId, getDeployerKeypair, getPassphrase } from '../../lib/stellar';
-import { getSacToCodeMap } from '../../lib/tokens';
+import { getSacToCodeMap, getTrackedTokens } from '../../lib/tokens';
 
 const router = Router();
+
+/**
+ * GET /v1/wallet/_debug/sync — TEMPORARY diagnostic.
+ * Dumps tracked tokens, event-sync cursors, and incoming_transfer counts so we
+ * can see why a given token isn't being recorded.
+ */
+router.get('/_debug/sync', async (_req: Request, res: Response) => {
+  try {
+    const server = getServer();
+    const latest = await server.getLatestLedger();
+    const tracked = getTrackedTokens();
+    const { rows: cursors } = await pool.query(`SELECT sac_id, last_ledger FROM event_sync_cursors`);
+    const { rows: counts } = await pool.query(
+      `SELECT asset_code, asset_sac_id, COUNT(*)::int AS n FROM incoming_transfers GROUP BY asset_code, asset_sac_id`,
+    );
+    const { rows: watched } = await pool.query(
+      `SELECT DISTINCT contract_id, code FROM watched_tokens`,
+    );
+    return res.json({ currentLedger: latest.sequence, tracked, cursors, counts, watched });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message ?? 'debug failed' });
+  }
+});
 
 /**
  * GET /v1/wallet/balance/:address
