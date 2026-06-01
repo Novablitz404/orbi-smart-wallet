@@ -197,10 +197,10 @@ export default function DashboardPage() {
   // Derive selected token's available balance in human units
   function getSelectedBalance(): string {
     if (selectedToken.code === 'XLM') {
-      return xlmBalance ? parseFloat(xlmBalance).toFixed(4) : '0';
+      return xlmBalance ? fmt(parseFloat(xlmBalance)) : '0';
     }
     const raw = tokenBalances[selectedToken.sacId] ?? '0';
-    return (Number(BigInt(raw)) / 10 ** selectedToken.decimals).toFixed(4);
+    return fmt(Number(BigInt(raw)) / 10 ** selectedToken.decimals);
   }
 
   function setMax() {
@@ -601,7 +601,7 @@ export default function DashboardPage() {
                   const isIncoming = tx.direction === 'incoming';
                   const isTransfer = tx.type === 'transfer';
                   const humanAmount = tx.amount && tx.assetCode
-                    ? `${(Number(BigInt(tx.amount)) / 1e7).toFixed(4)} ${tx.assetCode}`
+                    ? `${fmt(Number(BigInt(tx.amount)) / 1e7)} ${tx.assetCode}`
                     : null;
                   const counterparty = isIncoming ? tx.from : tx.to;
                   const label = isTransfer ? (isIncoming ? 'Received' : 'Sent') : (tx.functionName ?? 'Contract call');
