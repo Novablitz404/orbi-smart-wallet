@@ -20,11 +20,6 @@ export default function Home() {
     window.location.href = `${KEYS_URL}/connect?redirect=${redirect}&origin=${origin}`;
   }
 
-  function handleCreate() {
-    const redirect = encodeURIComponent(`${ACCOUNT_URL}/auth-callback`);
-    window.location.href = `${KEYS_URL}/create?redirect=${redirect}`;
-  }
-
   return (
     <main className="min-h-screen bg-[#020817] overflow-hidden relative">
 
@@ -52,9 +47,6 @@ export default function Home() {
           <div className="mt-auto pt-16 flex flex-col gap-3">
             <button onClick={handleSignIn} className="w-full max-w-xs py-5 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-semibold text-base transition-colors">
               Sign in
-            </button>
-            <button onClick={handleCreate} className="w-full max-w-xs py-5 rounded-2xl bg-transparent border border-slate-700 hover:border-slate-500 text-white font-semibold text-base transition-colors">
-              Create wallet
             </button>
             <p className="mt-2 text-slate-600 text-xs leading-relaxed">
               By using this product, you agree to our{' '}
@@ -103,9 +95,6 @@ export default function Home() {
           <div className="mt-auto pt-10 flex flex-col gap-3">
             <button onClick={handleSignIn} className="w-full py-4 rounded-2xl bg-white text-slate-900 font-semibold text-base transition-colors">
               Sign in
-            </button>
-            <button onClick={handleCreate} className="w-full py-4 rounded-2xl bg-transparent border border-slate-700 text-white font-semibold text-base transition-colors">
-              Create wallet
             </button>
             <p className="mt-2 text-slate-600 text-xs leading-relaxed text-center">
               By using this product, you agree to our{' '}
