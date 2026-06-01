@@ -46,6 +46,43 @@ router.get('/balance/:address', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /v1/wallet/token-balance/:walletAddress/:contractId
+ * Returns balance of any Stellar token SAC for a wallet address.
+ */
+router.get('/token-balance/:walletAddress/:contractId', async (req: Request, res: Response) => {
+  const { walletAddress, contractId } = req.params;
+  try {
+    const server = getServer();
+    const deployer = getDeployerKeypair();
+    const networkPassphrase = getPassphrase();
+
+    const tokenContract = new Contract(contractId);
+    const account = await server.getAccount(deployer.publicKey());
+
+    const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase })
+      .addOperation(tokenContract.call('balance', new Address(walletAddress).toScVal()))
+      .setTimeout(30)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if ('error' in sim) return res.json({ balance: '0', decimals: 7 });
+
+    const retval = (sim as any).result?.retval;
+    if (!retval) return res.json({ balance: '0', decimals: 7 });
+
+    const i128 = retval.i128();
+    const lo = BigInt(i128.lo().toString());
+    const hi = BigInt(i128.hi().toString());
+    const raw = hi * (2n ** 64n) + lo;
+
+    return res.json({ balance: raw.toString(), decimals: 7 });
+  } catch (err: any) {
+    console.error('[wallet/token-balance]', err);
+    return res.json({ balance: '0', decimals: 7 });
+  }
+});
+
+/**
  * GET /v1/wallet/check-email?email=...
  * Returns { available: true } if the email is not yet registered.
  */

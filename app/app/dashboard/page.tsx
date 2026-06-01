@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadWallet, clearWallet } from '../../lib/storage';
 import { Address, Networks, Asset, nativeToScVal } from '@stellar/stellar-sdk';
+import { STELLAR_TOKENS, tokenLetterAvatar, type StellarToken } from '../../lib/tokens';
 
 const dicebearUrl = (seed: string, size: number) =>
   `https://api.dicebear.com/9.x/rings/svg?seed=${encodeURIComponent(seed)}&size=${size}`;
@@ -38,6 +39,7 @@ export default function DashboardPage() {
   const [sendQuote, setSendQuote] = useState<Quote | null>(null);
   const [sendQuoting, setSendQuoting] = useState(false);
   const [sendError, setSendError] = useState('');
+  const [tokenBalances, setTokenBalances] = useState<Record<string, string>>({});
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -57,6 +59,23 @@ export default function DashboardPage() {
     fetch('https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd')
       .then(r => r.json()).then((d: { stellar?: { usd?: number } }) => setXlmPrice(d.stellar?.usd ?? null))
       .catch(() => setXlmPrice(null));
+
+    // Fetch balances for all known tokens in parallel
+    Promise.all(
+      STELLAR_TOKENS.map(token =>
+        fetch(`${RELAY_URL}/v1/wallet/token-balance/${w.walletAddress}/${token.sacId}`)
+          .then(r => r.json())
+          .then((d: { balance?: string; decimals?: number }) => ({
+            sacId: token.sacId,
+            balance: d.balance ?? '0',
+          }))
+          .catch(() => ({ sacId: token.sacId, balance: '0' }))
+      )
+    ).then(results => {
+      const map: Record<string, string> = {};
+      results.forEach(({ sacId, balance }) => { map[sacId] = balance; });
+      setTokenBalances(map);
+    });
   }, [router]);
 
   function copyAddress() {
@@ -248,6 +267,37 @@ export default function DashboardPage() {
                 <div className="text-right hidden md:block"><p className="text-white text-sm">100%</p></div>
                 <div className="text-right hidden md:block"><p className="text-white text-sm">{xlmPrice ? `$${xlmPrice.toFixed(4)}` : '—'}</p></div>
               </div>
+
+              {/* Other token rows */}
+              {STELLAR_TOKENS.map((token: StellarToken) => {
+                const rawBalance = tokenBalances[token.sacId] ?? null;
+                const balance = rawBalance ? (Number(BigInt(rawBalance)) / 10 ** token.decimals) : 0;
+                if (balance === 0) return null;
+                return (
+                  <div key={token.sacId} className="grid grid-cols-4 px-4 py-4 items-center hover:bg-slate-800/20 transition-colors rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0">
+                        <img
+                          src={token.icon}
+                          alt={token.code}
+                          className="w-full h-full object-cover"
+                          onError={e => { (e.target as HTMLImageElement).src = tokenLetterAvatar(token.code); }}
+                        />
+                      </div>
+                      <div>
+                        <p className="text-white text-sm font-medium">{token.name}</p>
+                        <p className="text-slate-500 text-xs">{token.code}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-white text-sm font-medium">—</p>
+                      <p className="text-slate-500 text-xs">{balance.toFixed(4)} {token.code}</p>
+                    </div>
+                    <div className="text-right hidden md:block"><p className="text-white text-sm">—</p></div>
+                    <div className="text-right hidden md:block"><p className="text-white text-sm">—</p></div>
+                  </div>
+                );
+              })}
             </>
           )}
 
@@ -412,7 +462,7 @@ export default function DashboardPage() {
                   <span className="text-white font-mono">{truncate(wallet.walletAddress)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">Orbi fee</span>
+                  <span className="text-slate-400">Network fee</span>
                   <span className="text-white">{sendQuote.feeXlm} XLM</span>
                 </div>
                 <div className="flex justify-between text-sm">
