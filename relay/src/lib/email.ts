@@ -32,16 +32,12 @@ export async function sendRecoveryOtp(to: string, otp: string): Promise<void> {
           <!-- Logo / header -->
           <tr>
             <td align="center" style="padding-bottom:32px;">
-              <table cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="background:linear-gradient(135deg,#3b82f6,#7c3aed);border-radius:12px;width:44px;height:44px;text-align:center;vertical-align:middle;">
-                    <span style="color:#fff;font-size:22px;font-weight:700;line-height:44px;">O</span>
-                  </td>
-                  <td style="padding-left:10px;vertical-align:middle;">
-                    <span style="color:#fff;font-size:18px;font-weight:600;letter-spacing:-0.3px;">Orbi Wallet</span>
-                  </td>
-                </tr>
-              </table>
+              <img
+                src="https://account.orbiwallet.xyz/Orbi%20logo%20-%20Landscape%20white.png"
+                alt="Orbi Wallet"
+                width="140"
+                style="height:auto;display:block;"
+              />
             </td>
           </tr>
 
