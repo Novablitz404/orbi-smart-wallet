@@ -56,6 +56,16 @@ const DEFAULTS: Record<'mainnet' | 'testnet', TokenDef[]> = {
   ],
 };
 
+// CoinGecko price IDs for tokens we can value. yXLM tracks XLM; USDC is a
+// USD stablecoin. Tokens not listed here have no price and show "—".
+export const TOKEN_PRICE_IDS: Record<string, string> = {
+  XLM: 'stellar',
+  USDC: 'usd-coin',
+  EURC: 'euro-coin',
+  AQUA: 'aquarius',
+  yXLM: 'stellar',
+};
+
 function deriveSac(code: string, issuer: string): string {
   return new Asset(code, issuer).contractId(PASSPHRASE);
 }

@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadWallet, clearWallet } from '../../lib/storage';
 import { Address, Networks, Asset, nativeToScVal } from '@stellar/stellar-sdk';
-import { STELLAR_TOKENS, tokenLetterAvatar, XLM_ICON, stellarExpertIcon, isValidContractId, type WatchedToken } from '../../lib/tokens';
+import { STELLAR_TOKENS, tokenLetterAvatar, XLM_ICON, stellarExpertIcon, isValidContractId, TOKEN_PRICE_IDS, type WatchedToken } from '../../lib/tokens';
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 
@@ -65,6 +65,7 @@ export default function DashboardPage() {
   const [wallet, setWallet] = useState<ReturnType<typeof loadWallet>>(null);
   const [xlmBalance, setXlmBalance] = useState<string | null>(null);
   const [xlmPrice, setXlmPrice] = useState<number | null>(null);
+  const [tokenPrices, setTokenPrices] = useState<Record<string, number>>({});
   const [copied, setCopied] = useState(false);
   const [activeNav, setActiveNav] = useState('assets');
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -158,9 +159,19 @@ export default function DashboardPage() {
     fetch(`${RELAY_URL}/v1/wallet/balance/${w.walletAddress}`)
       .then(r => r.json()).then((d: { xlm?: string }) => setXlmBalance(d.xlm ?? '0.0000000'))
       .catch(() => setXlmBalance('0.0000000'));
-    fetch('https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd')
-      .then(r => r.json()).then((d: { stellar?: { usd?: number } }) => setXlmPrice(d.stellar?.usd ?? null))
-      .catch(() => setXlmPrice(null));
+    const priceIds = [...new Set(Object.values(TOKEN_PRICE_IDS))].join(',');
+    fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${priceIds}&vs_currencies=usd`)
+      .then(r => r.json())
+      .then((d: Record<string, { usd?: number }>) => {
+        const byCode: Record<string, number> = {};
+        for (const [code, id] of Object.entries(TOKEN_PRICE_IDS)) {
+          const p = d?.[id]?.usd;
+          if (typeof p === 'number') byCode[code] = p;
+        }
+        setTokenPrices(byCode);
+        if (typeof byCode.XLM === 'number') setXlmPrice(byCode.XLM);
+      })
+      .catch(() => { setXlmPrice(null); setTokenPrices({}); });
 
     loadTokenBalances(w.walletAddress, STELLAR_TOKENS.map(t => t.sacId));
     loadWatchedTokens(w.walletAddress);
@@ -343,7 +354,23 @@ export default function DashboardPage() {
   }
 
   const xlmFloat = xlmBalance ? parseFloat(xlmBalance) : 0;
-  const usdValue = xlmPrice ? xlmFloat * xlmPrice : null;
+  const xlmUsd = xlmPrice != null ? xlmFloat * xlmPrice : null;
+
+  // Per-token portfolio: balance, price (where known), and USD value.
+  const tokenEntries = getDisplayTokens().map(t => {
+    const raw = tokenBalances[t.sacId];
+    const bal = raw ? Number(BigInt(raw)) / 10 ** t.decimals : 0;
+    const price = typeof tokenPrices[t.code] === 'number' ? tokenPrices[t.code] : null;
+    const usd = price != null ? bal * price : null;
+    return { token: t, bal, price, usd };
+  });
+
+  // Total portfolio value (priced holdings only) — drives the headline + percentages.
+  const totalUsd = (xlmUsd ?? 0) + tokenEntries.reduce((s, e) => s + (e.bal > 0 ? (e.usd ?? 0) : 0), 0);
+  const usdValue = xlmPrice != null ? totalUsd : null;
+  const pct = (usd: number | null): number | null =>
+    totalUsd > 0 && usd != null ? (usd / totalUsd) * 100 : null;
+
   // USD equivalent of the send amount — only for XLM
   const sendUsd = selectedToken.code === 'XLM' && xlmPrice && sendAmount
     ? (parseFloat(sendAmount) * xlmPrice).toFixed(2)
@@ -500,17 +527,16 @@ export default function DashboardPage() {
                   <div><p className="text-white text-sm font-medium">Stellar</p><p className="text-slate-500 text-xs">XLM</p></div>
                 </div>
                 <div className="text-right">
-                  <p className="text-white text-sm font-medium">{usdValue !== null ? `$${usdValue.toFixed(2)}` : '—'}</p>
+                  <p className="text-white text-sm font-medium">{xlmUsd !== null ? `$${xlmUsd.toFixed(2)}` : '—'}</p>
                   <p className="text-slate-500 text-xs">{xlmBalance !== null ? `${fmt(parseFloat(xlmBalance))} XLM` : <span className="animate-pulse">···</span>}</p>
                 </div>
-                <div className="text-right hidden md:block"><p className="text-white text-sm">100%</p></div>
+                <div className="text-right hidden md:block"><p className="text-white text-sm">{pct(xlmUsd) !== null ? `${pct(xlmUsd)!.toFixed(1)}%` : '—'}</p></div>
                 <div className="text-right hidden md:block"><p className="text-white text-sm">{xlmPrice ? `$${xlmPrice.toFixed(4)}` : '—'}</p></div>
               </div>
 
-              {getDisplayTokens().map(token => {
-                const rawBalance = tokenBalances[token.sacId] ?? null;
-                const balance = rawBalance ? (Number(BigInt(rawBalance)) / 10 ** token.decimals) : 0;
-                if (balance === 0) return null;
+              {tokenEntries.map(({ token, bal, price, usd }) => {
+                if (bal === 0) return null;
+                const tokenPct = pct(usd);
                 return (
                   <div key={token.sacId} className="group grid grid-cols-2 md:grid-cols-4 px-4 py-4 items-center hover:bg-slate-800/20 transition-colors rounded-xl">
                     <div className="flex items-center gap-3 min-w-0">
@@ -529,8 +555,8 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex items-center justify-end gap-2">
                       <div className="text-right">
-                        <p className="text-white text-sm font-medium">—</p>
-                        <p className="text-slate-500 text-xs">{fmt(balance)} {token.code}</p>
+                        <p className="text-white text-sm font-medium">{usd !== null ? `$${usd.toFixed(2)}` : '—'}</p>
+                        <p className="text-slate-500 text-xs">{fmt(bal)} {token.code}</p>
                       </div>
                       {token.addedVia && (
                         <button
@@ -542,8 +568,8 @@ export default function DashboardPage() {
                         </button>
                       )}
                     </div>
-                    <div className="text-right hidden md:block"><p className="text-white text-sm">—</p></div>
-                    <div className="text-right hidden md:block"><p className="text-white text-sm">—</p></div>
+                    <div className="text-right hidden md:block"><p className="text-white text-sm">{tokenPct !== null ? `${tokenPct.toFixed(1)}%` : '—'}</p></div>
+                    <div className="text-right hidden md:block"><p className="text-white text-sm">{price !== null ? `$${price.toFixed(4)}` : '—'}</p></div>
                   </div>
                 );
               })}
