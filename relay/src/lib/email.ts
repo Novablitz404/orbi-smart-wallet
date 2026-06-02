@@ -101,3 +101,105 @@ export async function sendRecoveryOtp(to: string, otp: string): Promise<void> {
     throw new Error(`Email send failed: ${err.message ?? res.status}`);
   }
 }
+
+export async function sendMagicLink(to: string, magicUrl: string): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error('RESEND_API_KEY env var not set');
+
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      from: 'Orbi Developers <developers@orbiwallet.xyz>',
+      to,
+      subject: 'Sign in to Orbi Developer Portal',
+      html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Orbi Developer Portal</title>
+</head>
+<body style="margin:0;padding:0;background:#020817;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#020817;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;">
+
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <img
+                src="https://account.orbiwallet.xyz/Orbi%20logo%20-%20Landscape%20white.png"
+                alt="Orbi Wallet"
+                width="140"
+                style="height:auto;display:block;"
+              />
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:40px 36px;">
+
+              <p style="margin:0 0 8px;color:#94a3b8;font-size:13px;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;">Developer Portal</p>
+              <h1 style="margin:0 0 24px;color:#fff;font-size:24px;font-weight:700;line-height:1.2;">
+                Sign in to your account
+              </h1>
+              <p style="margin:0 0 32px;color:#94a3b8;font-size:15px;line-height:1.6;">
+                Click the button below to sign in. This link expires in <strong style="color:#e2e8f0;">15 minutes</strong> and can only be used once.
+              </p>
+
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
+                <tr>
+                  <td align="center">
+                    <a href="${magicUrl}" style="display:inline-block;background:#3b82f6;color:#fff;font-size:15px;font-weight:600;text-decoration:none;padding:14px 32px;border-radius:10px;">
+                      Sign in to Orbi Developers
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 16px;color:#475569;font-size:13px;line-height:1.6;">
+                Or copy this link into your browser:
+              </p>
+              <p style="margin:0 0 24px;word-break:break-all;">
+                <a href="${magicUrl}" style="color:#3b82f6;font-size:12px;text-decoration:none;">${magicUrl}</a>
+              </p>
+
+              <hr style="border:none;border-top:1px solid #1e293b;margin:0 0 24px;" />
+
+              <p style="margin:0;color:#475569;font-size:13px;line-height:1.6;">
+                If you did not request this, you can safely ignore this email.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;color:#334155;font-size:12px;">
+                <a href="https://developers.orbiwallet.xyz" style="color:#3b82f6;text-decoration:none;">developers.orbiwallet.xyz</a>
+                &nbsp;·&nbsp;
+                <a href="https://orbiwallet.xyz" style="color:#334155;text-decoration:none;">orbiwallet.xyz</a>
+              </p>
+              <p style="margin:8px 0 0;color:#1e293b;font-size:11px;">
+                © 2026 Orbi Wallet. The first smart wallet on Stellar.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { message?: string };
+    throw new Error(`Magic link email failed: ${err.message ?? res.status}`);
+  }
+}

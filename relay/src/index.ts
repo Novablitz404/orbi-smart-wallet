@@ -13,6 +13,7 @@ import recoveryRouter from './api/routes/recovery';
 import walletRouter from './api/routes/wallet';
 import connectionsRouter from './api/routes/connections';
 import authRouter from './api/routes/auth';
+import devRouter from './api/routes/dev';
 
 dotenv.config();
 
@@ -49,6 +50,7 @@ app.use('/v1/recovery', recoveryRouter);
 app.use('/v1/wallet', walletRouter);
 app.use('/v1/connections', connectionsRouter);
 app.use('/v1/auth', authRouter);
+app.use('/v1/dev', devRouter);
 
 app.get('/health', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
 
@@ -174,6 +176,23 @@ async function start() {
       UNIQUE(wallet_address, contract_id)
     );
     CREATE INDEX IF NOT EXISTS idx_watched_tokens_wallet ON watched_tokens(wallet_address);
+
+    CREATE TABLE IF NOT EXISTS dev_magic_links (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      token_hash TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL,
+      used BOOLEAN NOT NULL DEFAULT false,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS dev_sessions (
+      token TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_dev_sessions_email ON dev_sessions(email);
   `);
   console.log('[relay] Migrations done.');
 
