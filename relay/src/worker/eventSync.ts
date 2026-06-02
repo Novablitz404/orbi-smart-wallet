@@ -60,9 +60,9 @@ async function scanRange(
     // recipient (topic[2]) is one of our known wallet addresses.
     topics: [
       [TRANSFER_TOPIC_XDR], // topic[0] = Symbol("transfer")
-      null,                  // topic[1] = any sender (wildcard)
+      null,                  // topic[1] = any sender (wildcard — RPC supports null, SDK type does not)
       walletBatchXdr,        // topic[2] = one of our wallets
-    ],
+    ] as string[][],
   };
 
   let cursor: string | undefined;
