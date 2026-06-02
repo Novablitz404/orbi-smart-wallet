@@ -29,3 +29,9 @@ export interface OpStatus {
   txHash: string | null;
   error: string | null;
 }
+
+export interface DeployerBalance {
+  address: string;
+  balanceXlm: string;
+  balanceStroops: string;
+}
