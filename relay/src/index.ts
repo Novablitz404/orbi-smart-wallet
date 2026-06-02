@@ -159,10 +159,7 @@ async function start() {
     );
     CREATE INDEX IF NOT EXISTS idx_incoming_transfers_wallet ON incoming_transfers(wallet_address);
 
-    CREATE TABLE IF NOT EXISTS event_sync_cursors (
-      sac_id TEXT PRIMARY KEY,
-      last_ledger INTEGER NOT NULL DEFAULT 0
-    );
+    DROP TABLE IF EXISTS event_sync_cursors;
 
     CREATE TABLE IF NOT EXISTS watched_tokens (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
