@@ -10,9 +10,6 @@ const INITIAL_BACKFILL_LEDGERS = 100_000;
 // regardless of cursor. Idempotent inserts auto-recover any skipped transfer.
 const RECONCILE_LEDGERS = 17_280; // ~24h at ~5s/ledger
 const RECONCILE_EVERY = 20;       // ~10 min at 30s interval
-// Max wallet addresses per topic-filter batch. Keeps individual RPC requests
-// small; batches are issued in parallel within each token scan.
-const WALLET_BATCH_SIZE = 50;
 
 // Pre-encoded at module load — avoids re-encoding every tick.
 // SAC transfer events: topic[0]=Symbol("transfer"), topic[1]=from, topic[2]=to.
@@ -20,10 +17,6 @@ const TRANSFER_TOPIC_XDR = xdr.ScVal.scvSymbol('transfer').toXDR().toString('bas
 
 let isSyncing = false;
 let tickCount = 0;
-
-function encodeAddressXdr(addr: string): string {
-  return new Address(addr).toScVal().toXDR().toString('base64');
-}
 
 function decodeAddress(scVal: xdr.ScVal): string | null {
   try { return Address.fromScVal(scVal).toString(); } catch { return null; }
@@ -48,7 +41,6 @@ function decodeI128(scVal: xdr.ScVal): string {
 async function scanRange(
   server: ReturnType<typeof getServer>,
   token: { code: string; sacId: string },
-  walletBatchXdr: string[],
   startLedger: number,
   currentLedger: number,
   knownWallets: Set<string>,
@@ -58,11 +50,9 @@ async function scanRange(
     contractIds: [token.sacId],
     // Topic filter pushed to the RPC: only Symbol("transfer") events where the
     // recipient (topic[2]) is one of our known wallet addresses.
-    topics: [
-      [TRANSFER_TOPIC_XDR], // topic[0] = Symbol("transfer")
-      null,                  // topic[1] = any sender (wildcard — RPC supports null, SDK type does not)
-      walletBatchXdr,        // topic[2] = one of our wallets
-    ] as string[][],
+    // Soroban RPC only supports prefix topic matching — no wildcard for intermediate
+    // positions. Filter on topic[0]="transfer" only; recipient check is in the loop.
+    topics: [[TRANSFER_TOPIC_XDR]],
   };
 
   let cursor: string | undefined;
@@ -139,14 +129,6 @@ async function syncEvents(): Promise<void> {
     const knownWallets = new Set<string>(walletRows.map((r: any) => r.wallet_address as string));
     if (knownWallets.size === 0) return;
 
-    // Pre-encode all wallet addresses once per sync cycle, then batch them.
-    // Batching keeps individual RPC requests well within filter-size limits.
-    const walletXdrs = [...knownWallets].map(encodeAddressXdr);
-    const walletBatches: string[][] = [];
-    for (let i = 0; i < walletXdrs.length; i += WALLET_BATCH_SIZE) {
-      walletBatches.push(walletXdrs.slice(i, i + WALLET_BATCH_SIZE));
-    }
-
     const latestLedger = await server.getLatestLedger();
     const currentLedger = latestLedger.sequence;
 
@@ -167,12 +149,7 @@ async function syncEvents(): Promise<void> {
         if (reconcile) startLedger = Math.min(startLedger, Math.max(1, currentLedger - RECONCILE_LEDGERS));
         if (startLedger > currentLedger) continue;
 
-        // Scan each wallet batch. Because the RPC applies the recipient filter
-        // server-side, each call only returns transfers TO our users — the total
-        // data returned is proportional to our user count, not contract volume.
-        for (const walletBatch of walletBatches) {
-          await scanRange(server, token, walletBatch, startLedger, currentLedger, knownWallets);
-        }
+        await scanRange(server, token, startLedger, currentLedger, knownWallets);
 
         await pool.query(
           `INSERT INTO event_sync_cursors (sac_id, last_ledger)
