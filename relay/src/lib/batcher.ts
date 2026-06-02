@@ -8,7 +8,7 @@ import {
   nativeToScVal,
   rpc,
 } from '@stellar/stellar-sdk';
-import { getServer, getDeployerKeypair, getBundlerContractId, getPassphrase, getNativeSacId, getFeeCollector } from './stellar';
+import { getServer, getDeployerKeypair, getBundlerContractId, getDappBundlerContractId, getPassphrase, getNativeSacId, getFeeCollector } from './stellar';
 import { PendingOp, createBatch, markBatched, markConfirmed, markFailed } from './queue';
 
 function buildExecuteWithFeeCall(
@@ -49,15 +49,18 @@ function isResourceError(err: unknown): boolean {
   return msg.includes('exceeded') || msg.includes('budget') || msg.includes('resources');
 }
 
-async function attemptSubmit(ops: PendingOp[]): Promise<string> {
+async function attemptSubmit(ops: PendingOp[], sponsorPublicKey?: string): Promise<string> {
   const server = getServer();
   const deployer = getDeployerKeypair();
-  const bundlerContractId = getBundlerContractId();
+  // Sponsored ops: source account = dApp's Stellar account (dApp pays network fee).
+  // Orbi's deployer key is a co-signer on the dApp account, so it can sign for it.
+  const bundlerContractId = sponsorPublicKey ? getDappBundlerContractId() : getBundlerContractId();
+  const sourceKey = sponsorPublicKey ?? deployer.publicKey();
   const networkPassphrase = getPassphrase();
   const nativeSacId = getNativeSacId();
   const feeCollector = getFeeCollector();
 
-  const account = await server.getAccount(deployer.publicKey());
+  const account = await server.getAccount(sourceKey);
 
   // Each op → wallet.execute_with_fee(...) call inside execute_batch
   const calls = ops.map(op => {
@@ -119,14 +122,14 @@ async function attemptSubmit(ops: PendingOp[]): Promise<string> {
  * If the batch exceeds Stellar's resource budget, it splits in half and retries
  * each sub-batch independently — automatically adapts to any op complexity.
  */
-export async function submitBatch(ops: PendingOp[]): Promise<void> {
+export async function submitBatch(ops: PendingOp[], sponsorPublicKey?: string): Promise<void> {
   if (ops.length === 0) return;
 
   const batchId = await createBatch(ops.length);
   await markBatched(ops.map(o => o.id), batchId);
 
   try {
-    const txHash = await attemptSubmit(ops);
+    const txHash = await attemptSubmit(ops, sponsorPublicKey);
     await markConfirmed(batchId, txHash);
     console.log(`[batcher] Confirmed batch ${batchId} (${ops.length} ops) → ${txHash}`);
   } catch (err: unknown) {
@@ -135,8 +138,8 @@ export async function submitBatch(ops: PendingOp[]): Promise<void> {
       console.log(`[batcher] Resource limit hit with ${ops.length} ops — splitting`);
       await markFailed(batchId, 'resource limit — splitting into sub-batches');
       const mid = Math.floor(ops.length / 2);
-      await submitBatch(ops.slice(0, mid));
-      await submitBatch(ops.slice(mid));
+      await submitBatch(ops.slice(0, mid), sponsorPublicKey);
+      await submitBatch(ops.slice(mid), sponsorPublicKey);
     } else {
       await markFailed(batchId, String(err));
       throw err;

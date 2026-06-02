@@ -11,17 +11,19 @@ export interface PendingOp {
   authEntryXdr: string;
   feeAuthEntryXdr: string;
   feeStroops: number;
+  sponsorPublicKey: string | null;
   createdAt: Date;
 }
 
 export async function enqueue(op: Omit<PendingOp, 'createdAt'>): Promise<string> {
   const { rows } = await pool.query(
     `INSERT INTO pending_ops
-      (id, wallet_address, contract_id, function_name, args_xdr, auth_entry_xdr, fee_auth_entry_xdr, fee_stroops)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      (id, wallet_address, contract_id, function_name, args_xdr, auth_entry_xdr, fee_auth_entry_xdr, fee_stroops, sponsor_public_key)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING id`,
     [op.id, op.walletAddress, op.contractId, op.functionName,
-     JSON.stringify(op.argsXdr), op.authEntryXdr, op.feeAuthEntryXdr, op.feeStroops],
+     JSON.stringify(op.argsXdr), op.authEntryXdr, op.feeAuthEntryXdr, op.feeStroops,
+     op.sponsorPublicKey ?? null],
   );
   return rows[0].id;
 }
@@ -44,6 +46,7 @@ export async function dequeuePending(): Promise<PendingOp[]> {
     authEntryXdr: r.auth_entry_xdr,
     feeAuthEntryXdr: r.fee_auth_entry_xdr,
     feeStroops: r.fee_stroops,
+    sponsorPublicKey: r.sponsor_public_key ?? null,
     createdAt: r.created_at,
   }));
 }

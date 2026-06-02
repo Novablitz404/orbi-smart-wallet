@@ -1,8 +1,7 @@
-import { dequeuePending } from '../lib/queue';
+import { dequeuePending, PendingOp } from '../lib/queue';
 import { submitBatch } from '../lib/batcher';
 
 const FLUSH_INTERVAL_MS = 5000;
-const MIN_BATCH_SIZE = 1;
 const MAX_BATCH_SIZE = 50;
 
 let isFlushing = false;
@@ -13,14 +12,23 @@ async function flush(): Promise<void> {
 
   try {
     const ops = await dequeuePending();
-    if (ops.length < MIN_BATCH_SIZE) return;
+    if (ops.length === 0) return;
 
-    const batch = ops.slice(0, MAX_BATCH_SIZE);
-    console.log(`[flush] Processing ${batch.length} ops`);
+    // Group by sponsor: null = Orbi pays network fee, string = dApp's account pays
+    const groups = new Map<string | null, PendingOp[]>();
+    for (const op of ops) {
+      const key = op.sponsorPublicKey ?? null;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(op);
+    }
 
-    // submitBatch handles batch creation, adaptive splitting on resource errors,
-    // and confirmation — no manual batch management needed here
-    await submitBatch(batch);
+    console.log(`[flush] ${ops.length} ops across ${groups.size} group(s)`);
+
+    await Promise.all(
+      [...groups.entries()].map(([sponsor, groupOps]) =>
+        submitBatch(groupOps.slice(0, MAX_BATCH_SIZE), sponsor ?? undefined),
+      ),
+    );
   } catch (err) {
     console.error('[flush] Error:', err);
   } finally {

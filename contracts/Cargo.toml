@@ -1,5 +1,5 @@
 [workspace]
-members = ["smart_wallet", "bundler"]
+members = ["smart_wallet", "bundler", "upgrade_registry"]
 resolver = "2"
 
 [workspace.dependencies]

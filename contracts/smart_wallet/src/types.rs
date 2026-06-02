@@ -40,6 +40,18 @@ pub enum Signature {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Signatures(pub Map<SignerKey, Signature>);
 
+// ── Upgrade types ─────────────────────────────────────────────────────────────
+
+/// Must stay field-for-field identical to UpgradeProposal in upgrade_registry/src/lib.rs.
+/// Both are #[contracttype] ScMaps keyed by symbol — matching fields = compatible XDR
+/// so the cross-contract call in execute_upgrade() deserializes correctly.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct UpgradeProposal {
+    pub new_wasm_hash: BytesN<32>,
+    pub unlock_ledger: u32,
+}
+
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
 #[contracttype]
@@ -51,6 +63,8 @@ pub enum DataKey {
     /// Can ONLY call replace_passkey — cannot authorize fund transfers.
     Guardian,
     Initialized,
+    /// Address of the UpgradeRegistry contract. Set once at construction.
+    Registry,
 }
 
 // ── Errors ────────────────────────────────────────────────────────────────────
@@ -66,4 +80,6 @@ pub enum Error {
     SignatureKeyValueMismatch = 5,
     ClientDataJsonChallengeIncorrect = 6,
     JsonParseError = 7,
+    TimelockActive = 8,
+    NoUpgradePending = 9,
 }

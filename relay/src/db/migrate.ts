@@ -60,6 +60,10 @@ async function migrate() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+    ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS deployer_public_key TEXT;
+
+    ALTER TABLE pending_ops ADD COLUMN IF NOT EXISTS sponsor_public_key TEXT;
   `);
 
   console.log('Migration complete.');

@@ -6,12 +6,13 @@ use soroban_sdk::{
     crypto::Hash,
     panic_with_error, token,
     Address, Bytes, BytesN, Env, Symbol, Val, Vec,
+    Vec as SorobanVec,
 };
 
 mod types;
 mod verify;
 
-use types::{DataKey, Error, Signature, Signatures, SignerKey, SignerVal};
+use types::{DataKey, Error, Signature, Signatures, SignerKey, SignerVal, UpgradeProposal};
 use verify::verify_secp256r1_signature;
 
 #[contract]
@@ -30,12 +31,14 @@ impl OrbiSmartWallet {
         passkey_id: Bytes,
         public_key: BytesN<65>,
         guardian: Address,
+        registry: Address,
     ) {
         if env.storage().instance().has(&DataKey::Initialized) {
             panic_with_error!(&env, Error::AlreadyInitialized);
         }
         env.storage().instance().set(&DataKey::Initialized, &true);
         env.storage().instance().set(&DataKey::Guardian, &guardian);
+        env.storage().instance().set(&DataKey::Registry, &registry);
 
         let key = DataKey::Signer(SignerKey::Secp256r1(passkey_id));
         env.storage().persistent().set(&key, &SignerVal::Secp256r1(public_key));
@@ -67,6 +70,31 @@ impl OrbiSmartWallet {
         let key = DataKey::Signer(SignerKey::Secp256r1(new_passkey_id));
         env.storage().persistent().set(&key, &SignerVal::Secp256r1(new_public_key));
 
+        Ok(())
+    }
+
+    /// Execute a pending upgrade from the UpgradeRegistry. Callable by anyone.
+    /// Reads the global registry — no per-wallet proposal needed.
+    pub fn execute_upgrade(env: Env) -> Result<(), Error> {
+        let registry: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Registry)
+            .ok_or(Error::NotInitialized)?;
+
+        let proposal: Option<UpgradeProposal> = env.invoke_contract(
+            &registry,
+            &Symbol::new(&env, "get_pending_upgrade"),
+            SorobanVec::new(&env),
+        );
+
+        let proposal = proposal.ok_or(Error::NoUpgradePending)?;
+
+        if env.ledger().sequence() < proposal.unlock_ledger {
+            return Err(Error::TimelockActive);
+        }
+
+        env.deployer().update_current_contract_wasm(proposal.new_wasm_hash);
         Ok(())
     }
 
@@ -117,8 +145,26 @@ impl CustomAccountInterface for OrbiSmartWallet {
         env: Env,
         signature_payload: Hash<32>,
         signatures: Signatures,
-        _auth_contexts: Vec<Context>,
+        auth_contexts: Vec<Context>,
     ) -> Result<(), Error> {
+        // Only allow execute_with_fee to be authorized via passkey.
+        // This prevents a sophisticated user from bypassing Orbi's fee by
+        // constructing a raw transaction that calls a SAC or other function
+        // directly, skipping execute_with_fee entirely.
+        let allowed_fn = Symbol::new(&env, "execute_with_fee");
+        for context in auth_contexts.iter() {
+            match context {
+                Context::Contract(ctx) => {
+                    if ctx.contract != env.current_contract_address()
+                        || ctx.fn_name != allowed_fn
+                    {
+                        return Err(Error::Unauthorized);
+                    }
+                }
+                _ => return Err(Error::Unauthorized),
+            }
+        }
+
         for (signer_key, signature) in signatures.0.iter() {
             let signer_val: SignerVal = env
                 .storage()

@@ -6,6 +6,7 @@ set -e
 CONTRACTS=(
   "smart_wallet:orbi_smart_wallet"
   "bundler:orbi_bundler"
+  "upgrade_registry:orbi_upgrade_registry"
 )
 
 for entry in "${CONTRACTS[@]}"; do

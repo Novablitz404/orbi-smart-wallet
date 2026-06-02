@@ -34,7 +34,6 @@ export async function createPasskey(
       },
       pubKeyCredParams: [{ alg: -7, type: 'public-key' }], // ES256 = secp256r1
       authenticatorSelection: {
-        authenticatorAttachment: 'platform',
         residentKey: 'preferred',
         userVerification: 'required',
       },

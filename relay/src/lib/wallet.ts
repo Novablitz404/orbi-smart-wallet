@@ -8,7 +8,7 @@ import {
   TransactionBuilder,
   BASE_FEE,
 } from '@stellar/stellar-sdk';
-import { getDeployerKeypair, getPassphrase, getServer } from './stellar';
+import { getDeployerKeypair, getPassphrase, getServer, getUpgradeRegistryId } from './stellar';
 import { deriveGuardianAddress } from './guardian';
 
 /**
@@ -129,9 +129,10 @@ export function buildDeployOperation(
     wasmHash: Buffer.from(wasmHash, 'hex'),
     salt,
     constructorArgs: [
-      xdr.ScVal.scvBytes(passkeyId),         // passkey_id: BytesN<20>
-      xdr.ScVal.scvBytes(publicKey),          // public_key: BytesN<65>
-      new Address(guardianAddress).toScVal(), // guardian: Address
+      xdr.ScVal.scvBytes(passkeyId),                        // passkey_id: Bytes
+      xdr.ScVal.scvBytes(publicKey),                        // public_key: BytesN<65>
+      new Address(guardianAddress).toScVal(),               // guardian: Address
+      new Address(getUpgradeRegistryId()).toScVal(),         // registry: Address
     ],
   });
 }

@@ -51,3 +51,21 @@ export function getFeeCollector(): string {
   if (!id) throw new Error('FEE_COLLECTOR_ADDRESS env var not set');
   return id;
 }
+
+export function getUpgradeRegistryId(): string {
+  const id = process.env.UPGRADE_REGISTRY_CONTRACT_ID;
+  if (!id) throw new Error('UPGRADE_REGISTRY_CONTRACT_ID env var not set');
+  return id;
+}
+
+export function getDappBundlerContractId(): string {
+  const id = process.env.DAPP_BUNDLER_CONTRACT_ID;
+  if (!id) throw new Error('DAPP_BUNDLER_CONTRACT_ID env var not set');
+  return id;
+}
+
+export function getHorizonUrl(): string {
+  return getNetwork() === 'mainnet'
+    ? 'https://horizon.stellar.org'
+    : 'https://horizon-testnet.stellar.org';
+}
