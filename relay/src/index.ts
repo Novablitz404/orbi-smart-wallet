@@ -193,6 +193,14 @@ async function start() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_dev_sessions_email ON dev_sessions(email);
+
+    CREATE TABLE IF NOT EXISTS horizon_sync_cursors (
+      wallet_address TEXT PRIMARY KEY,
+      last_cursor TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_incoming_transfers_tx_hash
+      ON incoming_transfers(tx_hash) WHERE tx_hash IS NOT NULL;
   `);
   console.log('[relay] Migrations done.');
 
