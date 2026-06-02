@@ -159,7 +159,10 @@ async function start() {
     );
     CREATE INDEX IF NOT EXISTS idx_incoming_transfers_wallet ON incoming_transfers(wallet_address);
 
-    DROP TABLE IF EXISTS event_sync_cursors;
+    CREATE TABLE IF NOT EXISTS event_sync_cursors (
+      sac_id TEXT PRIMARY KEY,
+      last_ledger INTEGER NOT NULL DEFAULT 0
+    );
 
     CREATE TABLE IF NOT EXISTS watched_tokens (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -191,13 +194,7 @@ async function start() {
     );
     CREATE INDEX IF NOT EXISTS idx_dev_sessions_email ON dev_sessions(email);
 
-    CREATE TABLE IF NOT EXISTS horizon_sync_cursors (
-      wallet_address TEXT PRIMARY KEY,
-      last_cursor TEXT NOT NULL DEFAULT ''
-    );
-
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_incoming_transfers_tx_hash
-      ON incoming_transfers(tx_hash) WHERE tx_hash IS NOT NULL;
+    DROP TABLE IF EXISTS horizon_sync_cursors;
   `);
   console.log('[relay] Migrations done.');
 
