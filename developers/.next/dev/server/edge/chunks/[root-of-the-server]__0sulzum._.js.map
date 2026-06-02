@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 16, "column": 0}, "map": {"version":3,"sources":["turbopack:///[project]/developers/middleware.ts"],"sourcesContent":["import { NextResponse } from 'next/server';\nimport type { NextRequest } from 'next/server';\n\n// Middleware can't access localStorage (it runs on the edge/server).\n// Session validation happens client-side in each protected page.\n// This middleware only handles basic routing — no server-side session needed\n// since there's no sensitive data rendered server-side in this app.\nexport function middleware(_req: NextRequest) {\n  return NextResponse.next();\n}\n\nexport const config = {\n  matcher: ['/dashboard/:path*', '/setup/:path*'],\n};\n"],"names":["middleware","_req","next","config","matcher"],"mappings":";;;;;;AAAA;AAAA;;AAOO,SAASA,WAAWC,IAAiB;IAC1C,OAAO,2NAAY,CAACC,IAAI;AAC1B;AAEO,MAAMC,SAAS;IACpBC,SAAS;QAAC;QAAqB;KAAgB;AACjD"}}]
-}
