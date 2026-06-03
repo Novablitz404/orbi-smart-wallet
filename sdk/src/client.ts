@@ -28,7 +28,7 @@
 
 import type { OrbiClientConfig, OpStatus, DeployerBalance } from './types';
 
-const KEYS_URL = 'https://account.orbiwallet.xyz';
+const KEYS_URL = 'https://keys.orbiwallet.xyz';
 
 export class OrbiClient {
   private apiUrl: string;
@@ -105,6 +105,7 @@ export class OrbiClient {
       url.searchParams.set('contractId', params.contractId);
       url.searchParams.set('functionName', params.functionName);
       url.searchParams.set('argsXdr', JSON.stringify(params.argsXdr));
+      if (this.apiKey) url.searchParams.set('apiKey', this.apiKey);
 
       const popup = window.open(url.toString(), 'orbi_sign', 'width=420,height=600');
       if (!popup) return reject(new Error('Popup blocked — allow popups for this site'));

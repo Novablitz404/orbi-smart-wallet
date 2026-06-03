@@ -61,7 +61,7 @@ export default function DashboardPage() {
   }
 
   async function copySnippet() {
-    const snippet = `const { opId } = await fetch('https://api.orbiwallet.xyz/v1/bundle', {\n  method: 'POST',\n  headers: {\n    'Content-Type': 'application/json',\n    'Authorization': 'Bearer YOUR_API_KEY',  // <-- sponsors the gas\n  },\n  body: JSON.stringify({\n    walletAddress,\n    quoteId: result.quoteId,\n    authEntryXdr: result.signedAuthEntryXdr,\n    call: {\n      contractId,\n      function: functionName,\n      argsXdr: result.argsXdr,\n    },\n  }),\n}).then(r => r.json());`;
+    const snippet = `import { OrbiClient } from '@orbi/sdk';\n\nconst orbi = new OrbiClient({\n  apiUrl: 'https://api.orbiwallet.xyz',\n  apiKey: 'YOUR_API_KEY',  // enables gasless\n});\n\n// 1. User connects their Orbi wallet\nconst { walletAddress } = await orbi.openConnect();\n\n// 2. User signs the transaction (passkey prompt — fee shown as sponsored)\nconst result = await orbi.openSign({\n  walletAddress,\n  contractId: 'YOUR_CONTRACT_ID',\n  functionName: 'your_function',\n  argsXdr,\n});\n\n// 3. Submit — gas is sponsored automatically\nconst { opId } = await orbi.bundle({\n  walletAddress,\n  quoteId: result.quoteId,\n  signedAuthEntryXdr: result.signedAuthEntryXdr,\n  contractId: 'YOUR_CONTRACT_ID',\n  functionName: 'your_function',\n  argsXdr: result.argsXdr,\n});\n\n// 4. Wait for confirmation\nconst status = await orbi.waitForConfirmation(opId);`;
     await navigator.clipboard.writeText(snippet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -186,13 +186,25 @@ export default function DashboardPage() {
 
           {/* Integration guide */}
           <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl p-6 space-y-6">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Quick Start — Gasless Transactions</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Quick Start</p>
+              <button onClick={copySnippet} className="text-xs text-slate-400 hover:text-white transition-colors">
+                {copied ? 'Copied!' : 'Copy all'}
+              </button>
+            </div>
 
             <p className="text-slate-400 text-sm leading-relaxed">
-              Orbi gasless lets your users interact with your dApp without paying network fees.
-              You cover the gas from your deployer account (the Gas Tank above).
-              No changes to your smart contract — it&apos;s purely a frontend integration.
+              Use the <code className="text-slate-300 bg-slate-800 px-1 rounded">@orbi/sdk</code> package to add Orbi smart wallet support and gasless transactions to your dApp frontend.
+              No backend required. No changes to your smart contract.
             </p>
+
+            {/* Install */}
+            <div>
+              <p className="text-white text-sm font-semibold mb-2">Install</p>
+              <pre className="text-slate-300 text-xs leading-relaxed bg-[#020817] rounded-xl p-4">
+{`npm install @orbi/sdk`}
+              </pre>
+            </div>
 
             {/* Step 1 */}
             <div>
@@ -204,107 +216,67 @@ export default function DashboardPage() {
 
             {/* Step 2 */}
             <div>
-              <p className="text-white text-sm font-semibold mb-1">Step 2 — Get a quote</p>
+              <p className="text-white text-sm font-semibold mb-2">Step 2 — Initialize the client</p>
               <p className="text-slate-400 text-sm leading-relaxed mb-3">
-                Before asking the user to sign, fetch a quote from Orbi. This returns an <code className="text-slate-300 bg-slate-800 px-1 rounded">authEntryXdr</code> — the authorization entry the user needs to sign.
+                Create one <code className="text-slate-300 bg-slate-800 px-1 rounded">OrbiClient</code> instance in your app with your API key. Passing the key is what enables gasless — without it, the user pays the fee themselves.
               </p>
               <pre className="text-slate-300 text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap break-words bg-[#020817] rounded-xl p-4">
-{`const quote = await fetch('https://api.orbiwallet.xyz/v1/quote', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    walletAddress,   // user's Orbi wallet address
-    contractId,      // your Stellar contract address
-    functionName,    // the function being called
-    argsXdr,         // function arguments as base64 ScVal array
-  }),
-}).then(r => r.json());
+{`import { OrbiClient } from '@orbi/sdk';
 
-// quote.authEntryXdr  — pass this to the Orbi sign popup
-// quote.quoteId       — include this in the bundle call`}
+const orbi = new OrbiClient({
+  apiUrl: 'https://api.orbiwallet.xyz',
+  apiKey: 'YOUR_API_KEY',  // <-- this enables gasless
+});`}
               </pre>
             </div>
 
             {/* Step 3 */}
             <div>
-              <p className="text-white text-sm font-semibold mb-1">Step 3 — Open the Orbi sign popup</p>
+              <p className="text-white text-sm font-semibold mb-2">Step 3 — Connect the user&apos;s wallet</p>
               <p className="text-slate-400 text-sm leading-relaxed mb-3">
-                Open a popup to <code className="text-slate-300 bg-slate-800 px-1 rounded">keys.orbiwallet.xyz/sign</code> so the user can approve with their passkey. Listen for the result on a <code className="text-slate-300 bg-slate-800 px-1 rounded">BroadcastChannel</code>.
+                Call <code className="text-slate-300 bg-slate-800 px-1 rounded">openConnect()</code> to open an Orbi popup where the user signs in with their passkey. You get back their wallet address.
               </p>
               <pre className="text-slate-300 text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap break-words bg-[#020817] rounded-xl p-4">
-{`const channelId = crypto.randomUUID();
-
-const params = new URLSearchParams({
-  channelId,
-  walletAddress,
-  contractId,
-  functionName,
-  argsXdr: JSON.stringify(argsXdr),
-  origin: window.location.origin,
-  apiKey: 'YOUR_API_KEY',  // <-- pass your API key here
-});
-
-window.open(
-  \`https://keys.orbiwallet.xyz/sign?\${params}\`,
-  'orbi_sign',
-  'width=400,height=600',
-);
-
-// Wait for the user to approve
-const result = await new Promise((resolve, reject) => {
-  const bc = new BroadcastChannel(channelId);
-  bc.onmessage = (e) => {
-    bc.close();
-    if (e.data.type === 'orbi_signed') resolve(e.data);
-    else reject(new Error('User rejected'));
-  };
-});
-
-// result.signedAuthEntryXdr — signed auth entry
-// result.argsXdr            — signed args (use these, not the original)
-// result.quoteId            — quote id
-// result.nativeSacId        — native XLM SAC contract id`}
+{`const { walletAddress } = await orbi.openConnect();
+// store walletAddress in your app state`}
               </pre>
             </div>
 
             {/* Step 4 */}
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-white text-sm font-semibold">Step 4 — Submit the bundle</p>
-                <button onClick={copySnippet} className="text-xs text-slate-400 hover:text-white transition-colors">
-                  {copied ? 'Copied!' : 'Copy'}
-                </button>
-              </div>
+              <p className="text-white text-sm font-semibold mb-2">Step 4 — Sign and submit a transaction</p>
               <p className="text-slate-400 text-sm leading-relaxed mb-3">
-                Submit the signed result to Orbi with your API key. Orbi batches it on-chain and pays the network fee from your Gas Tank.
+                When the user triggers an action in your dApp, call <code className="text-slate-300 bg-slate-800 px-1 rounded">openSign()</code> to open the approval popup, then <code className="text-slate-300 bg-slate-800 px-1 rounded">bundle()</code> to submit. The user will see the fee as sponsored — they pay nothing.
               </p>
               <pre className="text-slate-300 text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap break-words bg-[#020817] rounded-xl p-4">
-{`const { opId } = await fetch('https://api.orbiwallet.xyz/v1/bundle', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY',  // <-- sponsors the gas
-  },
-  body: JSON.stringify({
-    walletAddress,
-    quoteId: result.quoteId,
-    authEntryXdr: result.signedAuthEntryXdr,
-    call: {
-      contractId,
-      function: functionName,
-      argsXdr: result.argsXdr,  // use signed args from step 3
-    },
-  }),
-}).then(r => r.json());
+{`// Opens a passkey approval popup — user sees "Gas sponsored by [your name]"
+const result = await orbi.openSign({
+  walletAddress,
+  contractId: 'YOUR_CONTRACT_ID',
+  functionName: 'your_function',
+  argsXdr,  // base64 ScVal array of your function arguments
+});
 
-// opId — use this to track the transaction status`}
+// Submit to Orbi relay — gas deducted from your Gas Tank
+const { opId } = await orbi.bundle({
+  walletAddress,
+  quoteId: result.quoteId,
+  signedAuthEntryXdr: result.signedAuthEntryXdr,
+  contractId: 'YOUR_CONTRACT_ID',
+  functionName: 'your_function',
+  argsXdr: result.argsXdr,
+});
+
+// Wait for on-chain confirmation (~5s)
+const status = await orbi.waitForConfirmation(opId);
+console.log(status.txHash);`}
               </pre>
             </div>
 
             <div className="flex items-start gap-2 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
               <svg className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               <p className="text-blue-300 text-xs leading-relaxed">
-                Gas sponsorship applies to users with an Orbi smart wallet. Users on other wallets (Freighter, Lobstr) submit transactions directly and are unaffected.
+                Gas sponsorship applies to users with an Orbi smart wallet. Users on other wallets (Freighter, Lobstr) are unaffected — they submit transactions through their own wallet as usual.
               </p>
             </div>
           </div>
