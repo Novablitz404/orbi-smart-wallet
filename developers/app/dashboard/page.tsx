@@ -198,7 +198,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-white text-sm font-semibold mb-1">Step 1 — Fund your Gas Tank</p>
               <p className="text-slate-400 text-sm leading-relaxed">
-                Send XLM to your deployer address shown above. Every sponsored transaction costs a small network fee (~0.01 XLM) drawn from that balance. Keep it topped up.
+                Send XLM to your deployer address shown above. Each sponsored transaction deducts the exact network fee returned in the quote from your balance. Keep it topped up.
               </p>
             </div>
 
