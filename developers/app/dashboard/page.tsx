@@ -61,7 +61,7 @@ export default function DashboardPage() {
   }
 
   async function copySnippet() {
-    const snippet = `// 1. Get a quote for the operation\nconst quote = await fetch('https://api.orbiwallet.xyz/v1/quote', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ contractId, functionName, argsXdr, walletAddress }),\n}).then(r => r.json());\n\n// 2. User signs the auth entry (one passkey prompt)\nconst signedAuthEntry = await wallet.sign(quote.authEntryXdr);\n\n// 3. Submit the bundle — your API key sponsors the gas\nconst { opId } = await fetch('https://api.orbiwallet.xyz/v1/bundle', {\n  method: 'POST',\n  headers: {\n    'Content-Type': 'application/json',\n    'Authorization': 'Bearer YOUR_API_KEY',\n  },\n  body: JSON.stringify({\n    walletAddress,\n    quoteId: quote.quoteId,\n    authEntryXdr: signedAuthEntry,\n    call: { contractId, function: functionName, argsXdr },\n  }),\n}).then(r => r.json());`;
+    const snippet = `// Add your API key to the bundle request — that's all it takes.\n// Orbi handles the rest: the network fee is sponsored on behalf of your users.\n// Note: gas sponsorship only applies to users with an Orbi smart wallet.\n\nconst { opId } = await fetch('https://api.orbiwallet.xyz/v1/bundle', {\n  method: 'POST',\n  headers: {\n    'Content-Type': 'application/json',\n    'Authorization': 'Bearer YOUR_API_KEY',  // <-- this enables gasless\n  },\n  body: JSON.stringify({\n    walletAddress,\n    quoteId,\n    authEntryXdr,\n    call: { contractId, function: functionName, argsXdr },\n  }),\n}).then(r => r.json());`;
     await navigator.clipboard.writeText(snippet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -196,26 +196,20 @@ export default function DashboardPage() {
               </button>
             </div>
             <pre className="text-slate-300 text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap break-words">
-{`// 1. Get a quote
-const quote = await fetch('https://api.orbiwallet.xyz/v1/quote', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ contractId, functionName, argsXdr, walletAddress }),
-}).then(r => r.json());
+{`// Add your API key to the bundle request — that's all it takes.
+// Orbi handles the rest: the network fee is sponsored on behalf of your users.
+// Note: gas sponsorship only applies to users with an Orbi smart wallet.
 
-// 2. User signs (one passkey prompt)
-const signedAuthEntry = await wallet.sign(quote.authEntryXdr);
-
-// 3. Submit — your API key sponsors the gas
 const { opId } = await fetch('https://api.orbiwallet.xyz/v1/bundle', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY',
+    'Authorization': 'Bearer YOUR_API_KEY',  // <-- this enables gasless
   },
   body: JSON.stringify({
-    walletAddress, quoteId: quote.quoteId,
-    authEntryXdr: signedAuthEntry,
+    walletAddress,
+    quoteId,
+    authEntryXdr,
     call: { contractId, function: functionName, argsXdr },
   }),
 }).then(r => r.json());`}
