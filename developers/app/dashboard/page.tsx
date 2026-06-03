@@ -61,7 +61,7 @@ export default function DashboardPage() {
   }
 
   async function copySnippet() {
-    const snippet = `import { OrbiClient } from '@orbi/sdk';\n\n// Pass your API key — this is the only change needed to enable gasless\nconst orbi = new OrbiClient({\n  apiUrl: 'https://api.orbiwallet.xyz',\n  apiKey: 'YOUR_API_KEY',\n});\n\n// When the user triggers an action, open the sign popup\nconst result = await orbi.openSign({\n  walletAddress,           // already connected Orbi wallet address\n  contractId: 'YOUR_CONTRACT_ID',\n  functionName: 'your_function',\n  argsXdr,\n});\n\n// Submit — gas is automatically deducted from your Gas Tank\nconst { opId } = await orbi.bundle({\n  walletAddress,\n  quoteId: result.quoteId,\n  signedAuthEntryXdr: result.signedAuthEntryXdr,\n  contractId: 'YOUR_CONTRACT_ID',\n  functionName: 'your_function',\n  argsXdr: result.argsXdr,\n});\n\nconst status = await orbi.waitForConfirmation(opId);`;
+    const snippet = `import { OrbiClient } from '@orbi/sdk';\n\nconst orbi = new OrbiClient({\n  apiUrl: 'https://api.orbiwallet.xyz',\n  apiKey: 'YOUR_API_KEY',  // <-- add this to enable gasless\n});`;
     await navigator.clipboard.writeText(snippet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -194,7 +194,7 @@ export default function DashboardPage() {
             </div>
 
             <p className="text-slate-400 text-sm leading-relaxed">
-              Enable gasless transactions for your Orbi users in three steps. No backend required. No contract changes.
+              Two steps to enable gasless transactions for your Orbi users. No backend required. No contract changes.
             </p>
 
             {/* Step 1 */}
@@ -207,47 +207,17 @@ export default function DashboardPage() {
 
             {/* Step 2 */}
             <div>
-              <p className="text-white text-sm font-semibold mb-2">Step 2 — Pass your API key to the client</p>
+              <p className="text-white text-sm font-semibold mb-2">Step 2 — Add your API key to your OrbiClient</p>
               <p className="text-slate-400 text-sm leading-relaxed mb-3">
-                In your existing <code className="text-slate-300 bg-slate-800 px-1 rounded">OrbiClient</code> setup, add your API key. That single change is what enables gasless.
+                In your existing <code className="text-slate-300 bg-slate-800 px-1 rounded">OrbiClient</code>, add <code className="text-slate-300 bg-slate-800 px-1 rounded">apiKey</code>. That&apos;s it — your users now pay nothing for gas.
               </p>
               <pre className="text-slate-300 text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap break-words bg-[#020817] rounded-xl p-4">
 {`import { OrbiClient } from '@orbi/sdk';
 
 const orbi = new OrbiClient({
   apiUrl: 'https://api.orbiwallet.xyz',
-  apiKey: 'YOUR_API_KEY',  // <-- add this
+  apiKey: 'YOUR_API_KEY',  // <-- add this to enable gasless
 });`}
-              </pre>
-            </div>
-
-            {/* Step 3 */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-white text-sm font-semibold">Step 3 — Sign and submit as usual</p>
-              </div>
-              <p className="text-slate-400 text-sm leading-relaxed mb-3">
-                No changes to your signing flow. The user will see the fee crossed out and marked as sponsored. Gas is deducted from your Gas Tank automatically.
-              </p>
-              <pre className="text-slate-300 text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap break-words bg-[#020817] rounded-xl p-4">
-{`// User sees "Gas sponsored by [your dApp name]" — pays nothing
-const result = await orbi.openSign({
-  walletAddress,
-  contractId: 'YOUR_CONTRACT_ID',
-  functionName: 'your_function',
-  argsXdr,
-});
-
-const { opId } = await orbi.bundle({
-  walletAddress,
-  quoteId: result.quoteId,
-  signedAuthEntryXdr: result.signedAuthEntryXdr,
-  contractId: 'YOUR_CONTRACT_ID',
-  functionName: 'your_function',
-  argsXdr: result.argsXdr,
-});
-
-const status = await orbi.waitForConfirmation(opId);`}
               </pre>
             </div>
 
