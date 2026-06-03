@@ -108,7 +108,7 @@ export default function SignCallbackPage() {
         {status === 'error' && (
           <>
             <p className="text-red-400 text-sm text-center">{error}</p>
-            <button onClick={() => router.push('/send')} className="text-blue-400 text-sm hover:underline">Try again</button>
+            <button onClick={() => router.push('/dashboard')} className="text-blue-400 text-sm hover:underline">Try again</button>
           </>
         )}
       </div>

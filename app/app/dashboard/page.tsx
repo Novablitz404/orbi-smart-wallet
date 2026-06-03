@@ -244,9 +244,11 @@ export default function DashboardPage() {
         }),
       });
       if (res.ok) {
-        const q = await res.json() as { feeXlm: string };
-        const maxSendable = Math.max(0, parseFloat(xlmBalance) - parseFloat(q.feeXlm));
-        setSendAmount(fmt(maxSendable));
+        const q = await res.json() as { feeStroops: number };
+        // Work in stroops to avoid floating-point rounding eating into the fee
+        const balanceStroops = Math.floor(parseFloat(xlmBalance) * 1e7);
+        const maxStroops = Math.max(0, balanceStroops - q.feeStroops);
+        setSendAmount((maxStroops / 1e7).toFixed(7).replace(/0+$/, '').replace(/\.$/, ''));
       } else {
         setSendAmount(fmt(Math.max(0, parseFloat(xlmBalance) - 0.01)));
       }
