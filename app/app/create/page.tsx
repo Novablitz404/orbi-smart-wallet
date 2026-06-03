@@ -117,7 +117,7 @@ export default function CreateWalletPage() {
           <div className="flex flex-col gap-6">
             <div>
               <h2 className="text-2xl font-bold text-white">Create your wallet</h2>
-              <p className="text-slate-400 text-sm mt-1">Enter your email. Your Face ID will secure your wallet.</p>
+              <p className="text-slate-400 text-sm mt-1">Enter your email. Your passkey will secure your wallet.</p>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -177,7 +177,7 @@ export default function CreateWalletPage() {
         {step === 'passkey' && (
           <div className="flex flex-col gap-6">
             <div>
-              <h2 className="text-2xl font-bold text-white">Secure with Face ID</h2>
+              <h2 className="text-2xl font-bold text-white">Secure with passkey</h2>
               <p className="text-slate-400 text-sm mt-1">
                 Your device will ask you to authenticate. This creates your wallet key — no seed phrase needed.
               </p>
@@ -202,7 +202,7 @@ export default function CreateWalletPage() {
               disabled={loading}
               className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors disabled:opacity-50"
             >
-              {loading ? 'Preparing…' : 'Create with Face ID'}
+              {loading ? 'Preparing…' : 'Create with passkey'}
             </button>
           </div>
         )}

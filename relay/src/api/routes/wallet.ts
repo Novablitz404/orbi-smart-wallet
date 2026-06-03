@@ -402,4 +402,55 @@ router.delete('/tokens/:walletAddress/:contractId', async (req: Request, res: Re
   }
 });
 
+/**
+ * GET /v1/wallet/events/:opId
+ * SSE stream — pushes a single event when the op reaches confirmed or failed.
+ * Client connects immediately after submitting an op; server closes after the event.
+ */
+router.get('/events/:opId', async (req: Request, res: Response) => {
+  const { opId } = req.params;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // disable Railway/nginx buffering
+  res.flushHeaders();
+
+  const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+  const interval = setInterval(async () => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT status, tx_hash, error_message FROM pending_ops WHERE id = $1`,
+        [opId],
+      );
+      if (rows.length === 0) {
+        send({ status: 'not_found' });
+        clearInterval(interval);
+        res.end();
+        return;
+      }
+      const { status, tx_hash, error_message } = rows[0];
+      if (status === 'confirmed' || status === 'failed') {
+        send({ status, txHash: tx_hash ?? null, error: error_message ?? null });
+        clearInterval(interval);
+        res.end();
+      }
+    } catch {
+      // DB error — keep polling
+    }
+  }, 2000);
+
+  const timeout = setTimeout(() => {
+    clearInterval(interval);
+    send({ status: 'timeout' });
+    res.end();
+  }, 120_000);
+
+  req.on('close', () => {
+    clearInterval(interval);
+    clearTimeout(timeout);
+  });
+});
+
 export default router;

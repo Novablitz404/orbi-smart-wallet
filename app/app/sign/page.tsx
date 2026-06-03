@@ -44,7 +44,7 @@ interface QuoteResult {
  *
  * Flow:
  *   1. Show what the dApp is asking the user to authorize
- *   2. User taps "Approve" → Face ID → signs auth entry
+ *   2. User taps "Approve" → passkey → signs auth entry
  *   3. Post { type: 'orbi_signed', signedAuthEntryXdr } back
  *   4. Popup closes
  */
@@ -280,7 +280,7 @@ export default function SignPage() {
               onClick={handleSign}
               className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors"
             >
-              Approve with Face ID
+              Approve with passkey
             </button>
 
             <button onClick={sendCancel} className="text-slate-500 text-sm hover:text-slate-300">
@@ -295,7 +295,7 @@ export default function SignPage() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
-            <p className="text-white text-sm">Waiting for Face ID…</p>
+            <p className="text-white text-sm">Waiting for passkey…</p>
           </>
         )}
 

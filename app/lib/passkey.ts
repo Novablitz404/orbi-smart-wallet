@@ -14,7 +14,7 @@ export interface PasskeyAssertion {
 }
 
 /**
- * Create a new passkey (Face ID / Touch ID / hardware key).
+ * Create a new passkey (passkey / Touch ID / hardware key).
  * Returns the credential ID and public key needed to deploy the smart wallet.
  */
 export async function createPasskey(

@@ -17,7 +17,7 @@ export default function SignInPage() {
     setStatus('loading');
     setError('');
     try {
-      // Prompt Face ID — no credential hint, browser shows all Orbi passkeys
+      // Prompt passkey — no credential hint, browser shows all Orbi passkeys
       const credentialId = await authenticatePasskey();
 
       // Derive the passkeyId the relay knows about (already hex)
@@ -55,7 +55,7 @@ export default function SignInPage() {
         <img src="/Orbi%20Icon.png" alt="Orbi" className="w-16 h-16 rounded-2xl" />
         <h1 className="text-2xl font-bold text-white">Welcome back</h1>
         <p className="text-slate-400 text-center text-sm max-w-xs">
-          Use Face ID or Touch ID to sign in to your Orbi wallet.
+          Use your passkey to sign in to your Orbi wallet.
         </p>
       </div>
 

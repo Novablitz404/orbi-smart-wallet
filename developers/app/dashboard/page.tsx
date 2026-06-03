@@ -61,7 +61,7 @@ export default function DashboardPage() {
   }
 
   async function copySnippet() {
-    const snippet = `// 1. Get a quote for the operation\nconst quote = await fetch('https://api.orbiwallet.xyz/v1/quote', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ contractId, functionName, argsXdr, walletAddress }),\n}).then(r => r.json());\n\n// 2. User signs the auth entry (one Face ID prompt)\nconst signedAuthEntry = await wallet.sign(quote.authEntryXdr);\n\n// 3. Submit the bundle — your API key sponsors the gas\nconst { opId } = await fetch('https://api.orbiwallet.xyz/v1/bundle', {\n  method: 'POST',\n  headers: {\n    'Content-Type': 'application/json',\n    'Authorization': 'Bearer YOUR_API_KEY',\n  },\n  body: JSON.stringify({\n    walletAddress,\n    quoteId: quote.quoteId,\n    authEntryXdr: signedAuthEntry,\n    call: { contractId, function: functionName, argsXdr },\n  }),\n}).then(r => r.json());`;
+    const snippet = `// 1. Get a quote for the operation\nconst quote = await fetch('https://api.orbiwallet.xyz/v1/quote', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ contractId, functionName, argsXdr, walletAddress }),\n}).then(r => r.json());\n\n// 2. User signs the auth entry (one passkey prompt)\nconst signedAuthEntry = await wallet.sign(quote.authEntryXdr);\n\n// 3. Submit the bundle — your API key sponsors the gas\nconst { opId } = await fetch('https://api.orbiwallet.xyz/v1/bundle', {\n  method: 'POST',\n  headers: {\n    'Content-Type': 'application/json',\n    'Authorization': 'Bearer YOUR_API_KEY',\n  },\n  body: JSON.stringify({\n    walletAddress,\n    quoteId: quote.quoteId,\n    authEntryXdr: signedAuthEntry,\n    call: { contractId, function: functionName, argsXdr },\n  }),\n}).then(r => r.json());`;
     await navigator.clipboard.writeText(snippet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -203,7 +203,7 @@ const quote = await fetch('https://api.orbiwallet.xyz/v1/quote', {
   body: JSON.stringify({ contractId, functionName, argsXdr, walletAddress }),
 }).then(r => r.json());
 
-// 2. User signs (one Face ID prompt)
+// 2. User signs (one passkey prompt)
 const signedAuthEntry = await wallet.sign(quote.authEntryXdr);
 
 // 3. Submit — your API key sponsors the gas

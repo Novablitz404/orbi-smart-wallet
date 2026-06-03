@@ -102,7 +102,7 @@ function buildSignaturesScVal(
   ]);
 }
 
-// ── Main: sign an auth entry with Face ID ─────────────────────────────────────
+// ── Main: sign an auth entry with passkey ─────────────────────────────────────
 
 export interface SignedAuthEntry {
   authEntryXdr: string; // base64 — ready to POST to relay

@@ -252,7 +252,7 @@ export default function SendPage() {
               onClick={handleSend}
               className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors mt-2"
             >
-              Send with Face ID
+              Send with passkey
             </button>
           )}
         </div>

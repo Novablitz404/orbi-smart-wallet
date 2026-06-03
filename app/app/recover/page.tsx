@@ -96,7 +96,7 @@ export default function RecoverPage() {
         {step === 'passkey' && (
           <div className="flex flex-col gap-6">
             <div>
-              <h2 className="text-2xl font-bold text-white">Set up new Face ID</h2>
+              <h2 className="text-2xl font-bold text-white">Set up new passkey</h2>
               <p className="text-slate-400 text-sm mt-1">Create a new passkey on this device, then we'll send a code to verify it's really you.</p>
             </div>
             <div className="rounded-2xl bg-slate-800/50 border border-slate-700 p-6 flex flex-col items-center gap-3">
@@ -116,7 +116,7 @@ export default function RecoverPage() {
               disabled={loading}
               className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors disabled:opacity-50"
             >
-              {loading ? 'Setting up…' : 'Set up Face ID & send code'}
+              {loading ? 'Setting up…' : 'Set up passkey & send code'}
             </button>
           </div>
         )}
@@ -162,7 +162,7 @@ export default function RecoverPage() {
             </div>
             <div className="text-center">
               <h2 className="text-2xl font-bold text-white">Wallet recovered!</h2>
-              <p className="text-slate-400 text-sm mt-1">Your wallet is now secured with your new Face ID.</p>
+              <p className="text-slate-400 text-sm mt-1">Your wallet is now secured with your new passkey.</p>
             </div>
             <button
               onClick={() => router.push('/dashboard')}

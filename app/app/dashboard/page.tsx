@@ -85,6 +85,10 @@ export default function DashboardPage() {
   const [selectedToken, setSelectedToken] = useState<SendToken>(XLM_SEND_TOKEN);
   const [tokenSelectorOpen, setTokenSelectorOpen] = useState(false);
   const [maxLoading, setMaxLoading] = useState(false);
+
+  // Toast notification for background tx confirmation
+  type Toast = { type: 'pending' | 'success' | 'error'; message: string; txHash?: string };
+  const [toast, setToast] = useState<Toast | null>(null);
   const [transactions, setTransactions] = useState<TxRecord[] | null>(null);
   const [txLoading, setTxLoading] = useState(false);
   const [txPage, setTxPage] = useState(1);
@@ -178,6 +182,59 @@ export default function DashboardPage() {
     loadWatchedTokens(w.walletAddress);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
+  // Subscribe to SSE for a pending op from sign-callback redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const opId = params.get('pendingOp');
+    const txError = params.get('txError');
+
+    // Clean URL immediately
+    window.history.replaceState({}, '', '/dashboard');
+
+    if (txError) {
+      setToast({ type: 'error', message: decodeURIComponent(txError) });
+      return;
+    }
+    if (!opId) return;
+
+    setToast({ type: 'pending', message: 'Sending…' });
+
+    const es = new EventSource(`${RELAY_URL}/v1/wallet/events/${opId}`);
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data) as { status: string; txHash?: string; error?: string };
+        if (data.status === 'confirmed') {
+          setToast({ type: 'success', message: 'Sent!', txHash: data.txHash ?? undefined });
+          // Refresh balances after confirmation
+          if (wallet) {
+            fetch(`${RELAY_URL}/v1/wallet/balance/${wallet.walletAddress}`)
+              .then(r => r.json()).then((d: { xlm?: string }) => setXlmBalance(d.xlm ?? '0.0000000'))
+              .catch(() => {});
+            fetchHistory(wallet.walletAddress);
+          }
+        } else if (data.status === 'failed') {
+          setToast({ type: 'error', message: data.error ?? 'Transaction failed' });
+        } else if (data.status === 'timeout') {
+          setToast({ type: 'error', message: 'Timed out — check activity tab' });
+        }
+      } catch { /* ignore */ }
+      es.close();
+    };
+    es.onerror = () => {
+      setToast({ type: 'error', message: 'Lost connection — check activity tab' });
+      es.close();
+    };
+    return () => es.close();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-dismiss success toast after 5 seconds
+  useEffect(() => {
+    if (toast?.type !== 'success') return;
+    const t = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   useEffect(() => {
     if (activeNav === 'activity' && wallet && transactions === null) {
@@ -1034,6 +1091,38 @@ export default function DashboardPage() {
                 : 'Add token'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ── Toast notification ── */}
+      {toast && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-medium transition-all
+          ${toast.type === 'pending' ? 'bg-slate-800 border border-slate-700 text-slate-300' : ''}
+          ${toast.type === 'success' ? 'bg-green-500/10 border border-green-500/30 text-green-400' : ''}
+          ${toast.type === 'error' ? 'bg-red-500/10 border border-red-500/30 text-red-400' : ''}
+        `}>
+          {toast.type === 'pending' && (
+            <svg className="animate-spin w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+          )}
+          {toast.type === 'success' && <span className="shrink-0">✓</span>}
+          {toast.type === 'error' && <span className="shrink-0">✗</span>}
+          <span>{toast.message}</span>
+          {toast.type === 'success' && toast.txHash && (
+            <a
+              href={`https://stellar.expert/explorer/testnet/tx/${toast.txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-green-500 hover:underline text-xs"
+            >
+              View ↗
+            </a>
+          )}
+          {toast.type !== 'pending' && (
+            <button onClick={() => setToast(null)} className="ml-1 text-slate-500 hover:text-slate-300 shrink-0">✕</button>
+          )}
         </div>
       )}
 

@@ -162,7 +162,7 @@ export default function ConnectPage() {
                 onClick={handleConnect}
                 className="w-full py-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-semibold transition-colors"
               >
-                Sign in with Face ID
+                Sign in with passkey
               </button>
               <button
                 onClick={handleCreateWallet}
