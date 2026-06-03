@@ -36,6 +36,8 @@ async function flush(): Promise<void> {
   }
 }
 
+export { flush };
+
 export function startFlushWorker(): void {
   console.log(`[worker] Flush worker started — interval ${FLUSH_INTERVAL_MS}ms`);
   setInterval(flush, FLUSH_INTERVAL_MS);

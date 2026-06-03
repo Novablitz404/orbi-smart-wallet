@@ -3,6 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { enqueue } from '../../lib/queue';
 import { pool } from '../../lib/db';
 import { extractBearerToken, getApiKeyRecord } from '../../lib/auth';
+import { flush } from '../../worker/flush';
+
+const MAX_BATCH_SIZE = 50;
 
 const router = Router();
 
@@ -45,6 +48,10 @@ router.post('/', async (req: Request, res: Response) => {
       feeStroops: Number(quote.fee_stroops),
       sponsorPublicKey,
     });
+    // Auto-flush if pending ops hit the batch cap
+    const { rows: countRows } = await pool.query(`SELECT COUNT(*) FROM pending_ops WHERE status = 'pending'`);
+    if (parseInt(countRows[0].count, 10) >= MAX_BATCH_SIZE) flush().catch(() => {});
+
     return res.status(201).json({ opId: id });
   } catch (err: any) {
     console.error('[bundle]', err);
