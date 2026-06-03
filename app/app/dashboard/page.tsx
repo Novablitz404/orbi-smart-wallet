@@ -84,6 +84,7 @@ export default function DashboardPage() {
   const [tokenBalances, setTokenBalances] = useState<Record<string, string>>({});
   const [selectedToken, setSelectedToken] = useState<SendToken>(XLM_SEND_TOKEN);
   const [tokenSelectorOpen, setTokenSelectorOpen] = useState(false);
+  const [maxLoading, setMaxLoading] = useState(false);
   const [transactions, setTransactions] = useState<TxRecord[] | null>(null);
   const [txLoading, setTxLoading] = useState(false);
   const [txPage, setTxPage] = useState(1);
@@ -214,13 +215,45 @@ export default function DashboardPage() {
     return fmt(Number(BigInt(raw)) / 10 ** selectedToken.decimals);
   }
 
-  function setMax() {
-    if (selectedToken.code === 'XLM' && xlmBalance) {
-      // Reserve ~0.01 XLM to cover the Orbi gas fee so the transaction doesn't fail
-      const maxSendable = Math.max(0, parseFloat(xlmBalance) - 0.01);
-      setSendAmount(maxSendable > 0 ? fmt(maxSendable) : '0');
-    } else {
+  async function setMax() {
+    if (selectedToken.code !== 'XLM' || !xlmBalance || !wallet) {
       setSendAmount(getSelectedBalance());
+      return;
+    }
+
+    // If we already have a quote for this session, reuse its fee
+    if (sendQuote) {
+      const maxSendable = Math.max(0, parseFloat(xlmBalance) - parseFloat(sendQuote.feeXlm));
+      setSendAmount(fmt(maxSendable));
+      return;
+    }
+
+    // Fetch the exact fee with a dummy quote (pricer ignores args for transfer)
+    setMaxLoading(true);
+    try {
+      const dummyAddr = new Address(wallet.walletAddress).toScVal().toXDR('base64');
+      const dummyAmt = nativeToScVal(1n, { type: 'i128' }).toXDR('base64');
+      const res = await fetch(`${RELAY_URL}/v1/quote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: wallet.walletAddress,
+          contractId: NATIVE_SAC_ID,
+          functionName: 'transfer',
+          argsXdr: [dummyAddr, dummyAddr, dummyAmt],
+        }),
+      });
+      if (res.ok) {
+        const q = await res.json() as { feeXlm: string };
+        const maxSendable = Math.max(0, parseFloat(xlmBalance) - parseFloat(q.feeXlm));
+        setSendAmount(fmt(maxSendable));
+      } else {
+        setSendAmount(fmt(Math.max(0, parseFloat(xlmBalance) - 0.01)));
+      }
+    } catch {
+      setSendAmount(fmt(Math.max(0, parseFloat(xlmBalance) - 0.01)));
+    } finally {
+      setMaxLoading(false);
     }
   }
 
@@ -741,7 +774,7 @@ export default function DashboardPage() {
                 />
                 <div className="flex items-center gap-2">
                   <span className="text-slate-400 text-2xl font-light">{selectedToken.code}</span>
-                  <button onClick={setMax} className="text-xs text-slate-500 border border-slate-700 px-2.5 py-1 rounded-lg hover:border-slate-500 transition-colors">Max</button>
+                  <button onClick={setMax} disabled={maxLoading} className="text-xs text-slate-500 border border-slate-700 px-2.5 py-1 rounded-lg hover:border-slate-500 transition-colors disabled:opacity-40">{maxLoading ? '…' : 'Max'}</button>
                 </div>
               </div>
               {sendUsd !== null && (
