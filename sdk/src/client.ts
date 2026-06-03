@@ -271,14 +271,31 @@ export class OrbiClient {
     return res.json() as Promise<OpStatus>;
   }
 
-  /** Poll until confirmed or failed (max ~60 seconds). */
-  async waitForConfirmation(opId: string): Promise<OpStatus> {
-    for (let i = 0; i < 30; i++) {
-      await new Promise(r => setTimeout(r, 2000));
-      const status = await this.getStatus(opId);
-      if (status.status === 'confirmed' || status.status === 'failed') return status;
-    }
-    throw new Error(`Op ${opId} timed out`);
+  /** Wait for confirmed or failed via SSE (relay pushes the status change). */
+  waitForConfirmation(opId: string): Promise<OpStatus> {
+    return new Promise((resolve, reject) => {
+      const es = new EventSource(`${this.apiUrl}/v1/wallet/events/${opId}`);
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data as string) as { status: string; txHash?: string; error?: string };
+          es.close();
+          if (data.status === 'confirmed') {
+            resolve({ opId, status: 'confirmed', txHash: data.txHash ?? null, error: null });
+          } else if (data.status === 'failed') {
+            resolve({ opId, status: 'failed', txHash: null, error: data.error ?? 'Transaction failed' });
+          } else if (data.status === 'timeout') {
+            reject(new Error(`Op ${opId} timed out`));
+          }
+        } catch {
+          es.close();
+          reject(new Error('Invalid SSE response'));
+        }
+      };
+      es.onerror = () => {
+        es.close();
+        reject(new Error(`Lost connection waiting for op ${opId}`));
+      };
+    });
   }
 
   // ── Gas sponsorship onboarding ──────────────────────────────────────────────
