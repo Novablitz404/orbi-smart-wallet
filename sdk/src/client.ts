@@ -1,5 +1,5 @@
 /**
- * @orbi/sdk — Orbi Smart Wallet SDK
+ * @orbi-wallet/sdk — Orbi Smart Wallet SDK
  *
  * Lets any Stellar dApp integrate Orbi passkey wallets using a redirect flow.
  * Works on all devices and browsers — no popups, no extensions needed.

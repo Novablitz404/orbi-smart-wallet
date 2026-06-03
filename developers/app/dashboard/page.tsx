@@ -61,7 +61,7 @@ export default function DashboardPage() {
   }
 
   async function copySnippet() {
-    const snippet = `import { OrbiClient } from '@orbi/sdk';\n\nconst orbi = new OrbiClient({\n  apiUrl: 'https://api.orbiwallet.xyz',\n  apiKey: 'YOUR_API_KEY',  // <-- add this to enable gasless\n});`;
+    const snippet = `import { OrbiClient } from '@orbi-wallet/sdk';\n\nconst orbi = new OrbiClient({\n  apiUrl: 'https://api.orbiwallet.xyz',\n  apiKey: 'YOUR_API_KEY',  // <-- add this to enable gasless\n});`;
     await navigator.clipboard.writeText(snippet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -212,7 +212,7 @@ export default function DashboardPage() {
                 In your existing <code className="text-slate-300 bg-slate-800 px-1 rounded">OrbiClient</code>, add <code className="text-slate-300 bg-slate-800 px-1 rounded">apiKey</code>. That&apos;s it — your users now pay nothing for gas.
               </p>
               <pre className="text-slate-300 text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap break-words bg-[#020817] rounded-xl p-4">
-{`import { OrbiClient } from '@orbi/sdk';
+{`import { OrbiClient } from '@orbi-wallet/sdk';
 
 const orbi = new OrbiClient({
   apiUrl: 'https://api.orbiwallet.xyz',
@@ -224,7 +224,7 @@ const orbi = new OrbiClient({
             <div className="flex items-start gap-2 p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
               <svg className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               <p className="text-slate-400 text-xs leading-relaxed">
-                Your dApp must already have Orbi smart wallet integrated using <code className="text-slate-300 bg-slate-800 px-1 rounded">@orbi/sdk</code> before gasless will work. Gas sponsorship only applies to users with an Orbi smart wallet — other wallets are unaffected.
+                Your dApp must already have Orbi smart wallet integrated using <code className="text-slate-300 bg-slate-800 px-1 rounded">@orbi-wallet/sdk</code> before gasless will work. Gas sponsorship only applies to users with an Orbi smart wallet — other wallets are unaffected.
               </p>
             </div>
           </div>

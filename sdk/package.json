@@ -1,10 +1,20 @@
 {
-  "name": "@orbi/sdk",
+  "name": "@orbi-wallet/sdk",
   "version": "0.0.1",
-  "description": "Orbi Smart Wallet SDK — connect any dApp to Orbi gasless transactions",
+  "description": "Orbi Smart Wallet SDK — connect any dApp to Orbi passkey wallets with optional gasless transactions",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": ["dist"],
+  "license": "MIT",
+  "keywords": ["stellar", "smart-wallet", "passkey", "gasless", "soroban", "sdk"],
+  "homepage": "https://orbiwallet.xyz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Novablitz404/orbi-smart-wallet"
+  },
+  "bugs": {
+    "url": "https://github.com/Novablitz404/orbi-smart-wallet/issues"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch"
