@@ -1096,7 +1096,7 @@ export default function DashboardPage() {
 
       {/* ── Toast notification ── */}
       {toast && (
-        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-medium transition-all
+        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-medium transition-all
           ${toast.type === 'pending' ? 'bg-slate-800 border border-slate-700 text-slate-300' : ''}
           ${toast.type === 'success' ? 'bg-green-500/10 border border-green-500/30 text-green-400' : ''}
           ${toast.type === 'error' ? 'bg-red-500/10 border border-red-500/30 text-red-400' : ''}
