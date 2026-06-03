@@ -20,6 +20,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
+// Railway (and most PaaS) terminate TLS at a reverse proxy that sets X-Forwarded-For.
+// Without this, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+app.set('trust proxy', 1);
+
 app.use(cors());
 app.use(express.json());
 
