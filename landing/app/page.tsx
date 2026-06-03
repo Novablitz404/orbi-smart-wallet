@@ -60,7 +60,6 @@ export default function Home() {
 
             <div className="animate-fade-up-delay-2 mt-auto pt-16 flex flex-col gap-2 max-w-xs">
               <SignInButton label="Create wallet" action="create" className="w-full py-5 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-semibold text-base transition-colors cursor-pointer" />
-              <SignInButton className="w-full py-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-base transition-colors cursor-pointer" />
               <p className="text-slate-600 text-xs leading-relaxed">
                 By using this product, you agree to our{' '}
                 <Link href="/terms" className="text-slate-500 underline">terms</Link>{' '}
@@ -80,15 +79,7 @@ export default function Home() {
 
         {/* Mobile: single column */}
         <div className="relative z-10 w-full md:hidden flex flex-col min-h-screen px-6 py-8">
-          <Image
-            src="/Orbi logo - Landscape white.png"
-            alt="Orbi"
-            width={0}
-            height={0}
-            className="animate-fade-up w-[140px] h-auto mt-16"
-          />
-
-          <h1 className="animate-fade-up-delay-1 mt-10 text-[2.8rem] font-bold text-white leading-[0.95] tracking-tight">
+          <h1 className="animate-fade-up mt-24 text-[2.8rem] font-bold text-white leading-[0.95] tracking-tight">
             <span className="whitespace-nowrap">Your smart wallet,</span><br />
             unchained.
           </h1>
@@ -104,7 +95,6 @@ export default function Home() {
 
           <div className="animate-fade-up-delay-3 mt-auto pt-10 flex flex-col gap-2">
             <SignInButton label="Create wallet" action="create" className="w-full py-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-semibold text-base transition-colors cursor-pointer" />
-            <SignInButton className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-base transition-colors cursor-pointer" />
             <p className="text-slate-600 text-xs leading-relaxed text-center">
               By using this product, you agree to our{' '}
               <Link href="/terms" className="text-slate-500 underline">terms</Link>{' '}
@@ -186,18 +176,18 @@ export default function Home() {
               with a single line of configuration.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Link href={DEVELOPERS_URL} className="inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-100 text-slate-900 font-semibold px-7 py-3.5 rounded-2xl transition-colors">
+              <Link href={DEVELOPERS_URL} className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 text-slate-900 font-semibold px-7 py-3.5 rounded-2xl transition-colors w-full sm:w-auto">
                 Get your API key
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
               </Link>
-              <Link href={NPM_URL} className="inline-flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold px-7 py-3.5 rounded-2xl transition-colors">
+              <Link href={NPM_URL} className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold px-7 py-3.5 rounded-2xl transition-colors w-full sm:w-auto">
                 View on npm
               </Link>
             </div>
           </AnimateIn>
 
-          <AnimateIn delay={120}>
-            <div className="rounded-3xl border border-white/10 bg-[#040b18] overflow-hidden">
+          <AnimateIn delay={120} className="min-w-0">
+            <div className="rounded-3xl border border-white/10 bg-[#040b18] overflow-hidden w-full">
               <div className="flex items-center gap-2 px-5 py-3 border-b border-white/5 bg-white/[0.02]">
                 <span className="w-3 h-3 rounded-full bg-white/10" />
                 <span className="w-3 h-3 rounded-full bg-white/10" />
@@ -229,8 +219,8 @@ export default function Home() {
               Create your Orbi wallet in under 30 seconds. No download. No seed phrase.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <SignInButton label="Create account" action="create" className="inline-flex items-center gap-2 bg-white hover:bg-slate-100 text-slate-900 font-bold px-10 py-4 rounded-2xl text-lg transition-colors cursor-pointer" />
-              <SignInButton label="Sign in" className="inline-flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold px-10 py-4 rounded-2xl text-lg transition-colors cursor-pointer" />
+              <SignInButton label="Create account" action="create" className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 text-slate-900 font-semibold px-7 py-3.5 rounded-2xl transition-colors cursor-pointer w-full sm:w-auto" />
+              <SignInButton label="Sign in" className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold px-7 py-3.5 rounded-2xl transition-colors cursor-pointer w-full sm:w-auto" />
             </div>
           </AnimateIn>
         </div>
