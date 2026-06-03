@@ -215,7 +215,13 @@ export default function DashboardPage() {
   }
 
   function setMax() {
-    setSendAmount(getSelectedBalance());
+    if (selectedToken.code === 'XLM' && xlmBalance) {
+      // Reserve ~0.01 XLM to cover the Orbi gas fee so the transaction doesn't fail
+      const maxSendable = Math.max(0, parseFloat(xlmBalance) - 0.01);
+      setSendAmount(maxSendable > 0 ? fmt(maxSendable) : '0');
+    } else {
+      setSendAmount(getSelectedBalance());
+    }
   }
 
   // Curated defaults + watched tokens, deduped by contract ID.
