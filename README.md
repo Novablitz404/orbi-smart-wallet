@@ -214,21 +214,6 @@ npm run dev:relay
 npm run dev:app
 ```
 
-### Relay environment variables
-
-```env
-DATABASE_URL=postgresql://...
-STELLAR_RPC_URL=https://soroban-testnet.stellar.org
-STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
-DEPLOYER_SECRET=S...           # Stellar keypair that deploys wallets + fee-bumps
-GUARDIAN_MASTER_SECRET=...     # HMAC master secret for per-wallet guardian derivation
-FEE_COLLECTOR=G...             # Address that receives Orbi service fees
-SMART_WALLET_WASM_HASH=...     # Deployed smart_wallet contract WASM hash
-BUNDLER_CONTRACT_ID=C...       # Deployed bundler contract address
-UPGRADE_REGISTRY_ID=C...       # Deployed upgrade_registry contract address
-JWT_SECRET=...
-```
-
 ### Deploy contracts
 
 ```bash
