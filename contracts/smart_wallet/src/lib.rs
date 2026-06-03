@@ -127,9 +127,12 @@ impl OrbiSmartWallet {
         // Execute the user's operation
         env.invoke_contract::<Val>(&contract, &function, args);
 
-        // Collect Orbi's fee from this wallet
-        let fee_client = token::Client::new(&env, &fee_token);
-        fee_client.transfer(&env.current_contract_address(), &fee_collector, &fee);
+        // Collect Orbi's fee from this wallet. fee=0 means the dApp is sponsoring
+        // via their relay balance — skip the on-chain transfer.
+        if fee > 0 {
+            let fee_client = token::Client::new(&env, &fee_token);
+            fee_client.transfer(&env.current_contract_address(), &fee_collector, &fee);
+        }
     }
 }
 

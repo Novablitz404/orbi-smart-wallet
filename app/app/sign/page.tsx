@@ -1,13 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { xdr, Address, Networks, Asset, nativeToScVal } from '@stellar/stellar-sdk';
+import { xdr } from '@stellar/stellar-sdk';
 import { loadWallet } from '../../lib/storage';
 import { signAuthEntryWithPasskey } from '../../lib/authEntry';
 
 const RELAY_URL = process.env.NEXT_PUBLIC_RELAY_URL;
-const NETWORK_PASSPHRASE =
-  process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet' ? Networks.PUBLIC : Networks.TESTNET;
 const STROOPS_PER_XLM = 10_000_000;
 
 type Step = 'loading' | 'review' | 'signing' | 'done' | 'error';
@@ -19,6 +17,17 @@ interface SignRequest {
   functionName: string;
   argsXdr: string[];
   origin: string;
+  apiKey?: string;
+}
+
+interface QuoteResult {
+  quoteId: string;
+  authEntryXdr: string;
+  currentLedger: number;
+  nativeSacId: string;
+  feeXlm: string;
+  sponsored: boolean;
+  sponsorName: string | null;
 }
 
 /**
@@ -44,6 +53,7 @@ export default function SignPage() {
   const [req, setReq] = useState<SignRequest | null>(null);
   const [trusted, setTrusted] = useState(false);
   const [error, setError] = useState('');
+  const [quote, setQuote] = useState<QuoteResult | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -54,6 +64,7 @@ export default function SignPage() {
       functionName: params.get('functionName') ?? '',
       argsXdr: JSON.parse(params.get('argsXdr') ?? '[]') as string[],
       origin: params.get('origin') ?? '',
+      apiKey: params.get('apiKey') ?? undefined,
     };
 
     if (!r.walletAddress || !r.contractId || !r.functionName) {
@@ -64,13 +75,29 @@ export default function SignPage() {
 
     setReq(r);
 
-    // Check if this dApp has previously been granted permission
     if (r.walletAddress && r.origin) {
       fetch(`${RELAY_URL}/v1/connections/check?walletAddress=${r.walletAddress}&origin=${encodeURIComponent(r.origin)}`)
         .then(res => res.json())
         .then((d: { connected?: boolean }) => setTrusted(d.connected ?? false))
         .catch(() => setTrusted(false));
     }
+
+    // Fetch quote early so fee is visible before the user taps Approve
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (r.apiKey) headers['Authorization'] = `Bearer ${r.apiKey}`;
+    fetch(`${RELAY_URL}/v1/quote`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        walletAddress: r.walletAddress,
+        contractId: r.contractId,
+        functionName: r.functionName,
+        argsXdr: r.argsXdr,
+      }),
+    })
+      .then(res => res.json())
+      .then((q: QuoteResult) => setQuote(q))
+      .catch(() => { /* fee row stays blank */ });
 
     setStep('review');
   }, []);
@@ -112,46 +139,52 @@ export default function SignPage() {
       const wallet = loadWallet();
       if (!wallet) throw new Error('Not signed in');
 
-      const nativeSacId = Asset.native().contractId(NETWORK_PASSPHRASE);
       const args = req.argsXdr.map(a => xdr.ScVal.fromXDR(Buffer.from(a, 'base64')));
 
-      // Get quote for the fee + build combined auth entry
-      const quoteRes = await fetch(`${RELAY_URL}/v1/quote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: req.walletAddress,
-          contractId: req.contractId,
-          functionName: req.functionName,
-          argsXdr: req.argsXdr,
-        }),
-      });
-      if (!quoteRes.ok) throw new Error('Failed to get fee quote');
-      const quote = await quoteRes.json() as { quoteId: string; authEntryXdr: string; currentLedger: number; nativeSacId: string; feeXlm: string };
+      // Reuse the quote fetched during review; fetch fresh only if it expired or wasn't ready
+      let resolvedQuote = quote;
+      if (!resolvedQuote) {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (req.apiKey) headers['Authorization'] = `Bearer ${req.apiKey}`;
+        const quoteRes = await fetch(`${RELAY_URL}/v1/quote`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            walletAddress: req.walletAddress,
+            contractId: req.contractId,
+            functionName: req.functionName,
+            argsXdr: req.argsXdr,
+          }),
+        });
+        if (!quoteRes.ok) throw new Error('Failed to get fee quote');
+        resolvedQuote = await quoteRes.json() as QuoteResult;
+        setQuote(resolvedQuote);
+      }
+      if (!resolvedQuote) throw new Error('Failed to get fee quote');
 
-      const entry = xdr.SorobanAuthorizationEntry.fromXDR(Buffer.from(quote.authEntryXdr, 'base64'));
+      const entry = xdr.SorobanAuthorizationEntry.fromXDR(Buffer.from(resolvedQuote.authEntryXdr, 'base64'));
 
       const { authEntryXdr: signedXdr, argsXdr: signedArgsXdr } = await signAuthEntryWithPasskey({
         entry,
         args,
         credentialId: wallet.credentialId,
         passkeyId: wallet.passkeyId,
-        currentLedger: quote.currentLedger,
+        currentLedger: resolvedQuote.currentLedger,
       });
 
       const redirectUrl = new URLSearchParams(window.location.search).get('redirect');
       if (redirectUrl) {
         const url = new URL(redirectUrl);
         url.searchParams.set('signedXdr', signedXdr);
-        url.searchParams.set('quoteId', quote.quoteId);
+        url.searchParams.set('quoteId', resolvedQuote.quoteId);
         url.searchParams.set('argsXdr', JSON.stringify(signedArgsXdr));
-        url.searchParams.set('nativeSacId', quote.nativeSacId);
+        url.searchParams.set('nativeSacId', resolvedQuote.nativeSacId);
         url.searchParams.set('walletAddress', req.walletAddress);
         window.location.href = url.toString();
         return;
       }
 
-      sendResult(signedXdr, quote.quoteId, signedArgsXdr, quote.nativeSacId);
+      sendResult(signedXdr, resolvedQuote.quoteId, signedArgsXdr, resolvedQuote.nativeSacId);
       setStep('done');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Signing failed');
@@ -225,6 +258,21 @@ export default function SignPage() {
               <div className="flex justify-between">
                 <span className="text-slate-400">Requested by</span>
                 <span className="text-white">{appName}</span>
+              </div>
+              <div className="flex justify-between items-start">
+                <span className="text-slate-400">Network fee</span>
+                {quote ? (
+                  quote.sponsored ? (
+                    <div className="text-right">
+                      <span className="text-slate-500 line-through text-xs">{quote.feeXlm} XLM</span>
+                      <p className="text-green-400 text-xs mt-0.5">Sponsored by {quote.sponsorName}</p>
+                    </div>
+                  ) : (
+                    <span className="text-white">{quote.feeXlm} XLM</span>
+                  )
+                ) : (
+                  <span className="text-slate-600 animate-pulse text-xs">Calculating…</span>
+                )}
               </div>
             </div>
 

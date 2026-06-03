@@ -46,7 +46,6 @@ export function buildCombinedAuthEntry(params: {
     feeAmount,
   ];
 
-  // Sub-invocations: op call + fee transfer (both require wallet's require_auth)
   const opSub = new xdr.SorobanAuthorizedInvocation({
     function: xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeContractFn(
       new xdr.InvokeContractArgs({
@@ -58,7 +57,9 @@ export function buildCombinedAuthEntry(params: {
     subInvocations: [],
   });
 
-  const feeSub = new xdr.SorobanAuthorizedInvocation({
+  // When fee=0 the smart wallet skips the transfer call entirely (if fee > 0 guard).
+  // The sub-invocation tree must match what actually runs on-chain, so omit feeSub.
+  const feeSub = feeStroops > 0 ? new xdr.SorobanAuthorizedInvocation({
     function: xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeContractFn(
       new xdr.InvokeContractArgs({
         contractAddress: new Address(nativeSacId).toScAddress(),
@@ -71,7 +72,7 @@ export function buildCombinedAuthEntry(params: {
       }),
     ),
     subInvocations: [],
-  });
+  }) : null;
 
   // Use xdr.Int64 (the SDK's own Hyper type) — NOT the standalone `long` package,
   // which fails the js-xdr `instanceof Hyper` check with "is not a Hyper".
@@ -94,7 +95,7 @@ export function buildCombinedAuthEntry(params: {
           args: executeWithFeeArgs,
         }),
       ),
-      subInvocations: [opSub, feeSub],
+      subInvocations: [opSub, ...(feeSub ? [feeSub] : [])],
     }),
   });
 }

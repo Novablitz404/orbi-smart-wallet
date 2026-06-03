@@ -195,6 +195,9 @@ async function start() {
     CREATE INDEX IF NOT EXISTS idx_dev_sessions_email ON dev_sessions(email);
 
     DROP TABLE IF EXISTS horizon_sync_cursors;
+
+    ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS deployer_public_key TEXT;
+    ALTER TABLE pending_ops ADD COLUMN IF NOT EXISTS sponsor_public_key TEXT;
   `);
   console.log('[relay] Migrations done.');
 
