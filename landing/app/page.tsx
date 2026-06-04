@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import SignInButton from '../components/SignInButton';
 import AnimateIn from '../components/AnimateIn';
+import DevDropdown from '../components/DevDropdown';
 
 const DEVELOPERS_URL = 'https://developers.orbiwallet.xyz';
 const NPM_URL = 'https://npmjs.com/package/@orbi-wallet/sdk';
@@ -23,7 +24,7 @@ export default function Home() {
           />
           <Link href="#features" className="hidden md:block text-slate-400 hover:text-white text-sm px-4 py-1.5 rounded-full hover:bg-white/5 transition-colors">Features</Link>
           <Link href="#how" className="hidden md:block text-slate-400 hover:text-white text-sm px-4 py-1.5 rounded-full hover:bg-white/5 transition-colors">How it works</Link>
-          <Link href={DEVELOPERS_URL} className="hidden md:block text-slate-400 hover:text-white text-sm px-4 py-1.5 rounded-full hover:bg-white/5 transition-colors">Developers</Link>
+          <DevDropdown />
           <SignInButton className="bg-white text-slate-900 text-sm font-semibold px-5 py-1.5 rounded-full hover:bg-slate-100 transition-colors ml-2 cursor-pointer" />
         </div>
       </nav>
