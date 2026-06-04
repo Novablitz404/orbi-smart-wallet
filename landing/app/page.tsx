@@ -152,7 +152,7 @@ export default function Home() {
             ].map((s, i) => (
               <AnimateIn key={s.n} delay={i * 100}>
                 <div className="relative">
-                  <span className="text-6xl font-bold text-white/5 absolute -top-4 -left-2 select-none">{s.n}</span>
+                  <span className="text-6xl font-bold text-emerald-400/20 absolute -top-4 -left-2 select-none">{s.n}</span>
                   <div className="relative pt-10">
                     <h3 className="text-white font-semibold text-xl mb-3">{s.t}</h3>
                     <p className="text-slate-400 leading-relaxed">{s.d}</p>
