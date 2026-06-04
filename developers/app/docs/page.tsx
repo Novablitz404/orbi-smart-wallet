@@ -522,43 +522,19 @@ const status = await orbi.waitForConfirmation(opId);
 
               <div className="flex gap-4">
                 <StepBadge n="2" />
-                <div className="flex-1 space-y-2">
-                  <p className="text-sm font-semibold text-white">Generate a Stellar keypair for your gas tank</p>
-                  <p className="text-slate-400 text-sm">This account pays fees on behalf of your users. Keep the secret key private.</p>
-                  <CodeBlock code={`import { Keypair } from '@stellar/stellar-sdk';
-
-const kp = Keypair.random();
-console.log('Public key:', kp.publicKey()); // G... — you will register this
-console.log('Secret key:', kp.secret());    // S... — never commit this`} />
+                <div className="flex-1 space-y-1.5">
+                  <p className="text-sm font-semibold text-white">Set up your gas tank</p>
+                  <p className="text-slate-400 text-sm">
+                    Go to <a href="https://developers.orbiwallet.xyz/setup" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">developers.orbiwallet.xyz/setup</a>. The 3-step wizard generates a Stellar keypair in your browser, walks you through funding the address with XLM, and registers it with Orbi — all without the secret key ever leaving your device.
+                  </p>
                 </div>
               </div>
 
               <div className="flex gap-4">
                 <StepBadge n="3" />
                 <div className="flex-1 space-y-2">
-                  <p className="text-sm font-semibold text-white">Fund the gas tank</p>
-                  <CodeBlock code={`# Testnet — free
-curl "https://friendbot.stellar.org?addr=YOUR_G_ADDRESS"
-
-# Mainnet — send XLM from any wallet to your G... address
-# Minimum 1 XLM to activate. Recommended: 50–100 XLM to start.`} />
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <StepBadge n="4" />
-                <div className="flex-1 space-y-1.5">
-                  <p className="text-sm font-semibold text-white">Register the deployer in your dashboard</p>
-                  <p className="text-slate-400 text-sm">
-                    Go to <a href="https://developers.orbiwallet.xyz/setup" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">developers.orbiwallet.xyz/setup</a>, paste your public key (G...). Done — Orbi now knows which account pays fees.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <StepBadge n="5" />
-                <div className="flex-1 space-y-2">
                   <p className="text-sm font-semibold text-white">Add your API key to the client — one line change</p>
+
                   <CodeBlock code={`// lib/orbi.ts
 import { OrbiClient } from '@orbi-wallet/sdk';
 
