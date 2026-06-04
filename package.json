@@ -3,14 +3,11 @@
   "version": "0.0.1",
   "private": true,
   "workspaces": [
-    "relay",
     "app",
     "sdk"
   ],
   "scripts": {
-    "dev:relay": "npm --workspace relay run dev",
     "dev:app": "npm --workspace app run dev",
-    "build:relay": "npm --workspace relay run build",
     "build:app": "npm --workspace app run build",
     "build:sdk": "npm --workspace sdk run build"
   }
