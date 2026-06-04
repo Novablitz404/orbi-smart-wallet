@@ -298,21 +298,26 @@ orbi.sign({ walletAddress, contractId, functionName, argsXdr, redirectUrl });`} 
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <StepBadge n="A" />
-                <p className="text-sm font-semibold text-white">On your connect button — redirect the user</p>
+                <p className="text-sm font-semibold text-white">Inside your existing connect button click handler</p>
               </div>
+              <p className="text-slate-400 text-xs ml-10">
+                Wherever your "Connect Wallet" button already is — navbar, homepage, a login page. Just add this to its click handler.
+              </p>
               <CodeBlock code={`import { orbi } from './lib/orbi';
 
 orbi.connect({
   redirectUrl: 'https://yourapp.com/orbi-callback',
-});
-// User is taken to Orbi, signs in with passkey, then returns to redirectUrl`} />
+});`} />
             </div>
 
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <StepBadge n="B" />
-                <p className="text-sm font-semibold text-white">On your callback page — handle the return</p>
+                <p className="text-sm font-semibold text-white">Inside your orbi-callback page (file 2 from templates)</p>
               </div>
+              <p className="text-slate-400 text-xs ml-10">
+                This is already handled in the template — no changes needed here unless you want to redirect somewhere other than <code className="text-slate-300 bg-slate-800 px-1 rounded">/dashboard</code>.
+              </p>
               <CodeBlock code={`import { orbi } from './lib/orbi';
 
 const wallet = await orbi.handleCallback();
