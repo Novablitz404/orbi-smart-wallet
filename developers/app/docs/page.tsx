@@ -70,6 +70,7 @@ const NAV = [
   { id: 'watch-asset', label: 'Watch Asset' },
   { id: 'xdr-args', label: 'XDR Cheat Sheet' },
   { id: 'api-reference', label: 'API Reference' },
+  { id: 'ai-ide', label: 'AI IDE Context' },
 ];
 
 export default function DocsPage() {
@@ -179,20 +180,6 @@ export default function DocsPage() {
               <p className="text-slate-600 text-xs mt-4">
                 The connect button and sign trigger go into your <span className="text-slate-400">existing</span> pages — no new files needed for those.
               </p>
-            </div>
-
-            {/* AI IDE card */}
-            <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <svg className="w-4 h-4 text-purple-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <p className="text-xs font-semibold text-slate-400">Using an AI IDE? (Cursor, Claude Code, Windsurf…)</p>
-              </div>
-              <p className="text-slate-500 text-xs leading-relaxed mb-3">
-                Run this once in your project root. It gives your AI assistant full Orbi SDK knowledge — method signatures, the 3-file templates, XDR patterns, and common gotchas — so it can write correct integration code without guessing.
-              </p>
-              <CodeBlock code={`# Claude Code / Cursor / Windsurf\ncurl -o CLAUDE.md https://developers.orbiwallet.xyz/llms.txt\n\n# Cursor / Windsurf (alternative names)\ncurl -o .cursorrules https://developers.orbiwallet.xyz/llms.txt\ncurl -o .windsurfrules https://developers.orbiwallet.xyz/llms.txt`} />
             </div>
 
           </section>
@@ -701,6 +688,24 @@ xdr.ScVal.scvMap([
           </section>
 
           {/* Footer */}
+          <Divider />
+
+          {/* ── AI IDE ───────────────────────────────────────────────────────── */}
+          <section id="ai-ide" className="scroll-mt-24">
+            <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <svg className="w-4 h-4 text-purple-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <p className="text-xs font-semibold text-slate-400">Using an AI IDE? (Cursor, Claude Code, Windsurf…)</p>
+              </div>
+              <p className="text-slate-500 text-xs leading-relaxed mb-3">
+                Run this once in your project root. It gives your AI assistant full Orbi SDK knowledge — method signatures, the 3-file templates, XDR patterns, and common gotchas — so it can write correct integration code without guessing.
+              </p>
+              <CodeBlock code={`# Claude Code / Cursor / Windsurf\ncurl -o CLAUDE.md https://developers.orbiwallet.xyz/llms.txt\n\n# Cursor / Windsurf (alternative names)\ncurl -o .cursorrules https://developers.orbiwallet.xyz/llms.txt\ncurl -o .windsurfrules https://developers.orbiwallet.xyz/llms.txt`} />
+            </div>
+          </section>
+
           <footer className="pt-10 pb-6 border-t border-[#1e293b]" />
 
         </main>
