@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { getSession, clearSession } from '../../lib/session';
-import { getMe, getBalance, rotateKey, type DevAccount, type DeployerBalance } from '../../lib/api';
+import { getMe, getBalance, rotateKey, setSponsorship, type DevAccount, type DeployerBalance } from '../../lib/api';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [rotating, setRotating] = useState(false);
   const [newKey, setNewKey] = useState('');
   const [newKeyCopied, setNewKeyCopied] = useState(false);
+  const [togglingSponsor, setTogglingSponsor] = useState(false);
 
   useEffect(() => {
     const session = getSession();
@@ -51,6 +52,21 @@ export default function DashboardPage() {
       if (account) setAccount({ ...account, apiKeyHint: `orbi_••••••••${apiKey.slice(-4)}` });
     } finally {
       setRotating(false);
+    }
+  }
+
+  async function handleToggleSponsorship() {
+    const session = getSession();
+    if (!session || !account) return;
+    const next = !account.sponsorshipEnabled;
+    setTogglingSponsor(true);
+    setAccount({ ...account, sponsorshipEnabled: next }); // optimistic
+    try {
+      await setSponsorship(session.sessionToken, next);
+    } catch {
+      setAccount({ ...account, sponsorshipEnabled: !next }); // revert on failure
+    } finally {
+      setTogglingSponsor(false);
     }
   }
 
@@ -170,6 +186,33 @@ export default function DashboardPage() {
                   <p className="text-slate-500 text-sm">Could not fetch balance</p>
                 )}
                 <p className="text-slate-600 text-xs">Send XLM to your deployer address to top up.</p>
+
+                {/* Sponsorship toggle */}
+                <div className="flex items-center justify-between pt-4 mt-1 border-t border-[#1e293b]">
+                  <div>
+                    <p className="text-sm text-white font-medium">Gas sponsorship</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {account.sponsorshipEnabled
+                        ? 'On — your users pay no gas; fees come from your gas tank.'
+                        : 'Off — users pay their own gas. Your gas tank is untouched.'}
+                    </p>
+                  </div>
+                  <button
+                    role="switch"
+                    aria-checked={account.sponsorshipEnabled}
+                    onClick={handleToggleSponsorship}
+                    disabled={togglingSponsor}
+                    className={`relative shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${
+                      account.sponsorshipEnabled ? 'bg-[#30b27c]' : 'bg-slate-600'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                        account.sponsorshipEnabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="text-center py-4">

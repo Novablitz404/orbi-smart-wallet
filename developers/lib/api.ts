@@ -4,6 +4,7 @@ export interface DevAccount {
   developerName: string;
   email: string;
   deployerPublicKey: string | null;
+  sponsorshipEnabled: boolean;
   apiKeyHint: string;
 }
 
@@ -46,4 +47,11 @@ export async function setDeployer(sessionToken: string, deployerPublicKey: strin
 
 export async function rotateKey(sessionToken: string): Promise<{ apiKey: string }> {
   return devFetch('/rotate-key', sessionToken, { method: 'POST' });
+}
+
+export async function setSponsorship(sessionToken: string, enabled: boolean): Promise<void> {
+  await devFetch('/sponsorship', sessionToken, {
+    method: 'PATCH',
+    body: JSON.stringify({ enabled }),
+  });
 }
