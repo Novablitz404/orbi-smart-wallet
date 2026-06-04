@@ -346,7 +346,7 @@ if (wallet) {
                 <p className="text-sm font-semibold text-white">Encode your args and redirect the user to approve</p>
               </div>
               <p className="text-slate-400 text-xs ml-10">
-                Encode each contract argument as a base64 XDR string using <code className="text-slate-300 bg-slate-800 px-1 rounded">nativeToScVal</code>. One entry per argument your function expects.
+                Put this inside the click handler of whichever button triggers the transaction — a Send button, a Stake button, whatever already exists in your app. The <code className="text-slate-300 bg-slate-800 px-1 rounded">redirectUrl</code> must point to your <code className="text-slate-300 bg-slate-800 px-1 rounded">sign-callback</code> page (file 3 from the templates).
               </p>
               <CodeBlock code={`import { nativeToScVal } from '@stellar/stellar-sdk';
 import { orbi } from './lib/orbi';
