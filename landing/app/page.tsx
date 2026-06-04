@@ -94,7 +94,7 @@ export default function Home() {
             Sign in with passkeys — no passwords, no seed phrases. One account for sending, receiving, and connecting to dApps.
           </p>
 
-          <div className="animate-fade-up-delay-3 mt-8 flex flex-col gap-2">
+          <div className="animate-fade-up-delay-3 mt-12 flex flex-col gap-2">
             <SignInButton label="Create wallet" action="create" className="w-full py-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-semibold text-base transition-colors cursor-pointer" />
             <p className="text-slate-600 text-xs leading-relaxed text-center">
               By using this product, you agree to our{' '}
