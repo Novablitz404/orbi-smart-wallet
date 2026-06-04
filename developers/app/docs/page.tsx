@@ -121,6 +121,28 @@ export default function DocsPage() {
                 {label}
               </a>
             ))}
+
+            <div className="pt-6 space-y-1">
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">Links</p>
+              {[
+                { label: '@orbi-wallet/sdk on npm', href: 'https://npmjs.com/package/@orbi-wallet/sdk' },
+                { label: 'GitHub', href: 'https://github.com/Novablitz404/orbi-smart-wallet' },
+                { label: 'orbiwallet.xyz', href: 'https://orbiwallet.xyz' },
+              ].map(({ label, href }) => (
+                <a
+                  key={href}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between text-sm text-slate-500 hover:text-white py-1.5 transition-colors group"
+                >
+                  <span>{label}</span>
+                  <svg className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              ))}
+            </div>
           </nav>
         </aside>
 
