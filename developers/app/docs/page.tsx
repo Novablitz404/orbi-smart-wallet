@@ -496,8 +496,8 @@ const status = await orbi.waitForConfirmation(opId);
               </p>
             </div>
 
-            <div className="space-y-5">
-              <div className="flex gap-4">
+            <div className="space-y-3">
+              <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl p-5 flex gap-4">
                 <StepBadge n="1" />
                 <div className="flex-1 space-y-1.5">
                   <p className="text-sm font-semibold text-white">Get your API key</p>
@@ -507,7 +507,7 @@ const status = await orbi.waitForConfirmation(opId);
                 </div>
               </div>
 
-              <div className="flex gap-4">
+              <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl p-5 flex gap-4">
                 <StepBadge n="2" />
                 <div className="flex-1 space-y-1.5">
                   <p className="text-sm font-semibold text-white">Set up your gas tank</p>
@@ -517,11 +517,10 @@ const status = await orbi.waitForConfirmation(opId);
                 </div>
               </div>
 
-              <div className="flex gap-4">
+              <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl p-5 flex gap-4">
                 <StepBadge n="3" />
                 <div className="flex-1 space-y-2">
                   <p className="text-sm font-semibold text-white">Add your API key to the client — one line change</p>
-
                   <CodeBlock code={`// lib/orbi.ts
 import { OrbiClient } from '@orbi-wallet/sdk';
 
