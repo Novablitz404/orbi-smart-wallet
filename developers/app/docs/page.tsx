@@ -181,6 +181,20 @@ export default function DocsPage() {
               </p>
             </div>
 
+            {/* AI IDE card */}
+            <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <svg className="w-4 h-4 text-purple-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <p className="text-xs font-semibold text-slate-400">Using an AI IDE? (Cursor, Claude Code, Windsurf…)</p>
+              </div>
+              <p className="text-slate-500 text-xs leading-relaxed mb-3">
+                Run this once in your project root. It gives your AI assistant full Orbi SDK knowledge — method signatures, the 3-file templates, XDR patterns, and common gotchas — so it can write correct integration code without guessing.
+              </p>
+              <CodeBlock code={`# Claude Code / Cursor / Windsurf\ncurl -o CLAUDE.md https://developers.orbiwallet.xyz/llms.txt\n\n# Cursor / Windsurf (alternative names)\ncurl -o .cursorrules https://developers.orbiwallet.xyz/llms.txt\ncurl -o .windsurfrules https://developers.orbiwallet.xyz/llms.txt`} />
+            </div>
+
           </section>
 
           <Divider />

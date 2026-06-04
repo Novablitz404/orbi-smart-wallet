@@ -1,0 +1,305 @@
+# Orbi Smart Wallet — SDK Integration Context
+
+You are helping a developer integrate **Orbi Smart Wallet** (`@orbi-wallet/sdk`) into their Stellar dApp.
+
+Orbi is a passkey-based smart wallet for Stellar. It uses a **redirect flow** (not popups). The user is redirected to `keys.orbiwallet.xyz` to authenticate with their device passkey, then redirected back to the dApp. This works on all browsers including mobile.
+
+The dApp never holds private keys. Gas (transaction fees) can be sponsored by the dApp developer by passing an `apiKey` to `OrbiClient`.
+
+---
+
+## Package
+
+```
+npm install @orbi-wallet/sdk
+```
+
+---
+
+## OrbiClient constructor
+
+```ts
+import { OrbiClient } from '@orbi-wallet/sdk';
+
+// User pays gas (no API key needed):
+const orbi = new OrbiClient({ apiUrl: 'https://api.orbiwallet.xyz' });
+
+// dApp sponsors gas (users pay nothing):
+const orbi = new OrbiClient({
+  apiUrl: 'https://api.orbiwallet.xyz',
+  apiKey: process.env.NEXT_PUBLIC_ORBI_API_KEY,
+});
+```
+
+`OrbiClientConfig`:
+- `apiUrl: string` — always `'https://api.orbiwallet.xyz'`
+- `apiKey?: string` — enables gasless. Get one at `developers.orbiwallet.xyz`
+- `network?: 'testnet' | 'mainnet'` — optional, defaults to mainnet
+
+---
+
+## 3 files to create in the dApp
+
+Every Orbi integration requires exactly **3 new files**. Everything else is added to existing files.
+
+### File 1 — `lib/orbi.ts`
+
+Shared singleton. Import `orbi` from here everywhere.
+
+```ts
+import { OrbiClient } from '@orbi-wallet/sdk';
+
+export const orbi = new OrbiClient({
+  apiUrl: 'https://api.orbiwallet.xyz',
+  // apiKey: process.env.NEXT_PUBLIC_ORBI_API_KEY, // uncomment for gasless
+});
+```
+
+### File 2 — `app/orbi-callback/page.tsx`
+
+Orbi redirects here after the user connects their wallet. Register this URL at `keys.orbiwallet.xyz/connect?redirect=<your-url>` — the connect() call does this automatically.
+
+```tsx
+'use client';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { orbi } from '../../lib/orbi';
+
+export default function OrbiCallbackPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    orbi.handleCallback().then((wallet) => {
+      if (!wallet) { router.replace('/'); return; }
+      localStorage.setItem('walletAddress', wallet.walletAddress);
+      router.replace('/dashboard');
+    });
+  }, [router]);
+
+  return <div>Connecting…</div>;
+}
+```
+
+`handleCallback()` returns `{ walletAddress: string; passkeyId: string; email: string } | null`.
+
+### File 3 — `app/sign-callback/page.tsx`
+
+Orbi redirects here after the user approves a transaction with their passkey. This page reads the signed auth entry from the URL, reads `pendingContractId` and `pendingFunctionName` from `sessionStorage`, then calls `bundle()` and `waitForConfirmation()`.
+
+```tsx
+'use client';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { orbi } from '../../lib/orbi';
+
+export default function SignCallbackPage() {
+  const router = useRouter();
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const result = orbi.handleSignCallback();
+    if (!result) { router.replace('/'); return; }
+
+    const contractId = sessionStorage.getItem('pendingContractId')!;
+    const functionName = sessionStorage.getItem('pendingFunctionName')!;
+
+    orbi.bundle({
+      walletAddress: result.walletAddress,
+      quoteId: result.quoteId,
+      signedAuthEntryXdr: result.signedAuthEntryXdr,
+      contractId,
+      functionName,
+      argsXdr: result.argsXdr,
+    })
+      .then(({ opId }) => orbi.waitForConfirmation(opId))
+      .then((status) => {
+        if (status.status === 'confirmed') router.replace('/dashboard');
+        else setError(status.error ?? 'Transaction failed');
+      })
+      .catch((err: Error) => setError(err.message));
+  }, [router]);
+
+  if (error) return <div>Error: {error}</div>;
+  return <div>Submitting transaction…</div>;
+}
+```
+
+---
+
+## Connect wallet
+
+Add to your existing connect button click handler:
+
+```ts
+const walletAddress = localStorage.getItem('walletAddress');
+if (walletAddress) {
+  // already connected — skip
+} else {
+  orbi.connect({ redirectUrl: 'https://yourdapp.xyz/orbi-callback' });
+}
+```
+
+`connect()` immediately redirects. The user authenticates at `keys.orbiwallet.xyz`, then Orbi redirects to `redirectUrl?token=...`. File 2 (`orbi-callback`) handles the return.
+
+---
+
+## Sign a transaction
+
+Add to your existing transaction button click handler (e.g. "Send", "Stake", "Vote"):
+
+```ts
+const walletAddress = localStorage.getItem('walletAddress')!;
+
+// Save contract info so sign-callback knows what to submit
+sessionStorage.setItem('pendingContractId', 'YOUR_CONTRACT_ID');
+sessionStorage.setItem('pendingFunctionName', 'YOUR_FUNCTION_NAME');
+
+orbi.sign({
+  walletAddress,
+  contractId: 'YOUR_CONTRACT_ID',
+  functionName: 'YOUR_FUNCTION_NAME',
+  argsXdr,            // string[] — see XDR encoding below
+  redirectUrl: 'https://yourdapp.xyz/sign-callback',
+});
+```
+
+`sign()` immediately redirects. File 3 (`sign-callback`) handles the return automatically.
+
+---
+
+## XDR encoding for argsXdr
+
+Every argument to a Soroban contract function must be encoded as a base64 XDR string. Use `nativeToScVal` from `@stellar/stellar-sdk`:
+
+```ts
+import { nativeToScVal, xdr } from '@stellar/stellar-sdk';
+
+// Helper
+function toXdr(val: unknown, type?: string): string {
+  return nativeToScVal(val, { type } as never).toXDR('base64');
+}
+```
+
+Common patterns:
+
+```ts
+// transfer(from: Address, to: Address, amount: i128)
+const argsXdr = [
+  nativeToScVal('SENDER_ADDRESS', { type: 'address' }).toXDR('base64'),
+  nativeToScVal('RECIPIENT_ADDRESS', { type: 'address' }).toXDR('base64'),
+  nativeToScVal(BigInt('1000000'), { type: 'i128' }).toXDR('base64'),
+];
+
+// mint(to: Address, amount: i128)
+const argsXdr = [
+  nativeToScVal('RECIPIENT_ADDRESS', { type: 'address' }).toXDR('base64'),
+  nativeToScVal(BigInt('1000000'), { type: 'i128' }).toXDR('base64'),
+];
+
+// approve(from: Address, spender: Address, amount: i128, expiration_ledger: u32)
+const argsXdr = [
+  nativeToScVal('FROM_ADDRESS', { type: 'address' }).toXDR('base64'),
+  nativeToScVal('SPENDER_ADDRESS', { type: 'address' }).toXDR('base64'),
+  nativeToScVal(BigInt('5000000'), { type: 'i128' }).toXDR('base64'),
+  nativeToScVal(1000000, { type: 'u32' }).toXDR('base64'),
+];
+
+// stake(user: Address, amount: i128)
+const argsXdr = [
+  nativeToScVal('USER_ADDRESS', { type: 'address' }).toXDR('base64'),
+  nativeToScVal(BigInt('2000000'), { type: 'i128' }).toXDR('base64'),
+];
+
+// vote(voter: Address, proposal_id: u32, support: bool)
+const argsXdr = [
+  nativeToScVal('VOTER_ADDRESS', { type: 'address' }).toXDR('base64'),
+  nativeToScVal(42, { type: 'u32' }).toXDR('base64'),
+  nativeToScVal(true, { type: 'bool' }).toXDR('base64'),
+];
+```
+
+Type map:
+- Stellar address → `{ type: 'address' }`, value is a string (public key or contract ID)
+- `i128` / `u128` → `{ type: 'i128' }`, value is a `BigInt`
+- `u32` / `i32` → `{ type: 'u32' }`, value is a `number`
+- `bool` → `{ type: 'bool' }`, value is a `boolean`
+- `symbol` / `string` → `{ type: 'symbol' }` or `{ type: 'string' }`
+
+Amounts are in **stroops** (1 XLM = 10,000,000 stroops). For token contracts with 7 decimal places, multiply by 10^7.
+
+---
+
+## Full API reference
+
+### `orbi.connect(params)`
+Redirects to `keys.orbiwallet.xyz` for wallet connection.
+- `params.redirectUrl: string` — your callback URL (must be File 2)
+
+### `orbi.handleCallback()`
+Call on the orbi-callback page. Returns `{ walletAddress, passkeyId, email } | null`.
+Exchanges the `?token=` param for wallet data.
+
+### `orbi.sign(params)`
+Redirects to `keys.orbiwallet.xyz` for transaction approval.
+- `params.walletAddress: string`
+- `params.contractId: string`
+- `params.functionName: string`
+- `params.argsXdr: string[]` — base64 XDR encoded args
+- `params.redirectUrl: string` — your sign-callback URL (must be File 3)
+
+### `orbi.handleSignCallback()`
+Call on the sign-callback page. Returns `{ signedAuthEntryXdr, quoteId, argsXdr, nativeSacId, walletAddress } | null`.
+
+### `orbi.bundle(params)`
+Submit signed operation to Orbi relay. Returns `{ opId: string }`.
+- `params.walletAddress: string`
+- `params.quoteId: string`
+- `params.signedAuthEntryXdr: string`
+- `params.contractId: string`
+- `params.functionName: string`
+- `params.argsXdr: string[]`
+
+### `orbi.waitForConfirmation(opId)`
+Waits via SSE for `confirmed` or `failed`. Returns `OpStatus`:
+```ts
+{ opId: string; status: 'pending' | 'batched' | 'confirmed' | 'failed'; txHash: string | null; error: string | null }
+```
+
+### `orbi.getStatus(opId)`
+One-shot status check. Same return type as `waitForConfirmation`.
+
+### `orbi.watchAsset(params)`
+Redirect to add a token to the user's Orbi wallet.
+- `params.contractId: string`
+- `params.redirectUrl: string`
+
+### `orbi.handleWatchAssetCallback()`
+Returns `{ contractId: string; added: boolean } | null`.
+
+### `orbi.getDeployerBalance()`
+Returns `{ address, balanceXlm, balanceStroops }`. Requires `apiKey`.
+
+### `orbi.setDeployer(deployerPublicKey)`
+Update gas tank address. Requires `apiKey`.
+
+---
+
+## Gasless setup (gas sponsorship)
+
+1. Register at `developers.orbiwallet.xyz` to get an API key.
+2. Fund your deployer address with XLM (shown in the developer dashboard).
+3. Pass `apiKey` to `OrbiClient` (see constructor above).
+4. That's it — your users pay zero gas.
+
+Gas sponsorship only applies to Orbi wallet users. Other wallets are unaffected.
+
+---
+
+## Key rules
+
+- `orbi.connect()` and `orbi.sign()` cause an **immediate page redirect**. Any code after them won't run.
+- Always save `pendingContractId` and `pendingFunctionName` to `sessionStorage` **before** calling `orbi.sign()`.
+- `argsXdr` must be an array of **base64 XDR strings** — plain JS values will not work.
+- `walletAddress` is the Stellar Soroban contract address of the user's smart wallet (not an ed25519 public key).
+- The relay (`api.orbiwallet.xyz`) builds and submits the transaction. The dApp does NOT need `TransactionBuilder`, sequence numbers, or `simulate`.
+- All three template files above can be used as-is — only replace placeholder values (`YOUR_CONTRACT_ID`, etc.).
