@@ -22,6 +22,11 @@ contracts/target/
 # Compiled wasm (reproducible via build.sh)
 contracts/smart_wallet/orbi_smart_wallet.wasm
 contracts/bundler/orbi_bundler.wasm
+contracts/upgrade_registry/orbi_upgrade_registry.wasm
+contracts/treasury/orbi_treasury.wasm
+
+# Contract test snapshots (auto-generated)
+contracts/*/test_snapshots/
 
 # OS
 .DS_Store
