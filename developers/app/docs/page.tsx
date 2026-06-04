@@ -62,6 +62,7 @@ function Divider() {
 
 const NAV = [
   { id: 'overview', label: 'Overview' },
+  { id: 'templates', label: 'Templates' },
   { id: 'install', label: '1. Install' },
   { id: 'initialize', label: '2. Initialize' },
   { id: 'connect', label: '3. Connect Wallet' },
@@ -159,24 +160,121 @@ export default function DocsPage() {
               </p>
             </div>
 
-            <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl p-5 space-y-3">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Full flow</p>
-              {[
-                { arrow: '→', fn: 'orbi.connect()', desc: 'redirect user to Orbi — they sign in with passkey' },
-                { arrow: '←', fn: 'handleCallback()', desc: 'user returns with walletAddress' },
-                { arrow: '→', fn: 'orbi.sign()', desc: 'redirect user to approve a contract call' },
-                { arrow: '←', fn: 'handleSignCallback()', desc: 'user returns with signed authorization' },
-                { arrow: '→', fn: 'orbi.bundle()', desc: 'submit signed tx to the relay' },
-                { arrow: '✓', fn: 'waitForConfirmation()', desc: 'confirmed on-chain in ~5 seconds' },
-              ].map(({ arrow, fn, desc }) => (
-                <div key={fn} className="flex items-start gap-3">
-                  <span className="text-blue-400 font-mono text-sm shrink-0 w-4">{arrow}</span>
-                  <div>
-                    <code className="text-slate-200 text-xs">{fn}</code>
-                    <span className="text-slate-500 text-xs ml-2">— {desc}</span>
-                  </div>
-                </div>
-              ))}
+          </section>
+
+          <Divider />
+
+          {/* ── Templates ────────────────────────────────────────────────────── */}
+          <section id="templates" className="scroll-mt-24 space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-white mb-1">Templates</h2>
+              <p className="text-slate-400 text-sm">
+                Create these three files in order. Replace the URLs and contract details with your own — everything else stays as-is.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <StepBadge n="1" />
+                <p className="text-xs font-semibold text-slate-400">lib/orbi.ts</p>
+              </div>
+              <CodeBlock code={`import { OrbiClient } from '@orbi-wallet/sdk';
+
+export const orbi = new OrbiClient({
+  apiUrl: 'https://api.orbiwallet.xyz',
+  // apiKey: process.env.NEXT_PUBLIC_ORBI_API_KEY, // uncomment to enable gasless
+});`} />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <StepBadge n="2" />
+                <p className="text-xs font-semibold text-slate-400">app/orbi-callback/page.tsx</p>
+                <span className="text-xs text-slate-600">— create this route in your app</span>
+              </div>
+              <CodeBlock code={`'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { orbi } from '../../lib/orbi';
+
+export default function OrbiCallbackPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    orbi.handleCallback().then((wallet) => {
+      if (!wallet) {
+        router.replace('/');
+        return;
+      }
+
+      localStorage.setItem('walletAddress', wallet.walletAddress);
+      router.replace('/dashboard'); // ← change to your post-connect route
+    });
+  }, [router]);
+
+  return <div>Connecting…</div>;
+}`} />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <StepBadge n="3" />
+                <p className="text-xs font-semibold text-slate-400">app/sign-callback/page.tsx</p>
+                <span className="text-xs text-slate-600">— create this route in your app</span>
+              </div>
+              <CodeBlock code={`'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { orbi } from '../../lib/orbi';
+
+export default function SignCallbackPage() {
+  const router = useRouter();
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const result = orbi.handleSignCallback();
+    if (!result) {
+      router.replace('/');
+      return;
+    }
+
+    // Read the contract details saved before orbi.sign() was called
+    const contractId   = sessionStorage.getItem('pendingContractId')!;
+    const functionName = sessionStorage.getItem('pendingFunctionName')!;
+
+    orbi
+      .bundle({
+        walletAddress: result.walletAddress,
+        quoteId: result.quoteId,
+        signedAuthEntryXdr: result.signedAuthEntryXdr,
+        contractId,
+        functionName,
+        argsXdr: result.argsXdr,
+      })
+      .then(({ opId }) => orbi.waitForConfirmation(opId))
+      .then((status) => {
+        if (status.status === 'confirmed') {
+          router.replace('/dashboard'); // ← change to your post-tx route
+        } else {
+          setError(status.error ?? 'Transaction failed');
+        }
+      })
+      .catch((err: Error) => setError(err.message));
+  }, [router]);
+
+  if (error) return <div>Error: {error}</div>;
+  return <div>Submitting transaction…</div>;
+}`} />
+              <p className="text-slate-500 text-xs mt-2">
+                Before calling <code className="text-slate-400 bg-slate-800 px-1 rounded">orbi.sign()</code> in your app, save the contract details to sessionStorage so this page can read them:
+              </p>
+              <CodeBlock code={`// In your app, before calling orbi.sign():
+sessionStorage.setItem('pendingContractId', 'YOUR_CONTRACT_ID');
+sessionStorage.setItem('pendingFunctionName', 'YOUR_FUNCTION_NAME');
+
+orbi.sign({ walletAddress, contractId, functionName, argsXdr, redirectUrl });`} />
             </div>
           </section>
 
