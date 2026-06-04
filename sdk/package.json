@@ -1,6 +1,6 @@
 {
   "name": "@orbi-wallet/sdk",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "description": "Orbi Smart Wallet SDK — connect any dApp to Orbi passkey wallets with optional gasless transactions",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

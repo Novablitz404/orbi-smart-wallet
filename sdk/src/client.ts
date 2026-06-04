@@ -25,6 +25,41 @@ import type { OrbiClientConfig, OpStatus, DeployerBalance } from './types';
 
 const KEYS_URL = 'https://keys.orbiwallet.xyz';
 
+// @stellar/js-xdr calls readBigInt64BE / writeBigInt64BE on its internal buffer
+// when serializing Int64/Hyper XDR values. The browser Buffer polyfill is missing
+// these methods. Patch Uint8Array.prototype via DataView so they resolve everywhere.
+type _TypedArr = Uint8Array & {
+  readBigInt64BE?: (offset?: number) => bigint;
+  readBigUInt64BE?: (offset?: number) => bigint;
+  readBigInt64LE?: (offset?: number) => bigint;
+  readBigUInt64LE?: (offset?: number) => bigint;
+  writeBigInt64BE?: (value: bigint, offset?: number) => number;
+  writeBigUInt64BE?: (value: bigint, offset?: number) => number;
+  writeBigInt64LE?: (value: bigint, offset?: number) => number;
+  writeBigUInt64LE?: (value: bigint, offset?: number) => number;
+};
+function _patchBuffer() {
+  if (typeof window === 'undefined') return;
+  function dv(b: Uint8Array) { return new DataView(b.buffer, b.byteOffset, b.byteLength); }
+  function def(p: _TypedArr, n: string, fn: (this: Uint8Array, ...a: never[]) => unknown) {
+    if (typeof (p as unknown as Record<string, unknown>)[n] !== 'function')
+      Object.defineProperty(p, n, { value: fn, writable: true, configurable: true });
+  }
+  function patch(p: _TypedArr | undefined) {
+    if (!p) return;
+    def(p, 'readBigInt64BE',  function(this: Uint8Array, o = 0) { return dv(this).getBigInt64(o, false); } as never);
+    def(p, 'readBigUInt64BE', function(this: Uint8Array, o = 0) { return dv(this).getBigUint64(o, false); } as never);
+    def(p, 'readBigInt64LE',  function(this: Uint8Array, o = 0) { return dv(this).getBigInt64(o, true); } as never);
+    def(p, 'readBigUInt64LE', function(this: Uint8Array, o = 0) { return dv(this).getBigUint64(o, true); } as never);
+    def(p, 'writeBigInt64BE',  function(this: Uint8Array, v: bigint, o = 0) { dv(this).setBigInt64(o, v, false); return o + 8; } as never);
+    def(p, 'writeBigUInt64BE', function(this: Uint8Array, v: bigint, o = 0) { dv(this).setBigUint64(o, v, false); return o + 8; } as never);
+    def(p, 'writeBigInt64LE',  function(this: Uint8Array, v: bigint, o = 0) { dv(this).setBigInt64(o, v, true); return o + 8; } as never);
+    def(p, 'writeBigUInt64LE', function(this: Uint8Array, v: bigint, o = 0) { dv(this).setBigUint64(o, v, true); return o + 8; } as never);
+  }
+  patch(Uint8Array.prototype as _TypedArr);
+  patch((globalThis as unknown as { Buffer?: { prototype: _TypedArr } }).Buffer?.prototype);
+}
+
 export class OrbiClient {
   private apiUrl: string;
   private apiKey?: string;
@@ -32,6 +67,7 @@ export class OrbiClient {
   constructor(config: OrbiClientConfig) {
     this.apiUrl = config.apiUrl.replace(/\/$/, '');
     this.apiKey = config.apiKey;
+    _patchBuffer();
   }
 
   private authHeaders(): Record<string, string> {
@@ -45,6 +81,18 @@ export class OrbiClient {
     const url = new URL(`${KEYS_URL}/connect`);
     url.searchParams.set('redirect', params.redirectUrl);
     url.searchParams.set('origin', window.location.origin);
+    window.location.href = url.toString();
+  }
+
+  /**
+   * Clear the Orbi session and redirect back to your app.
+   * Call this when the user disconnects — clears the passkey session on
+   * keys.orbiwallet.xyz so the next connect() prompts for authentication again.
+   * You are responsible for clearing your own local wallet state before calling this.
+   */
+  disconnect(redirectUrl: string) {
+    const url = new URL(`${KEYS_URL}/signout`);
+    url.searchParams.set('redirect', redirectUrl);
     window.location.href = url.toString();
   }
 

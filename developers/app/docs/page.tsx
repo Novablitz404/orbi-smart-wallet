@@ -70,6 +70,7 @@ const NAV = [
   { id: 'watch-asset', label: 'Watch Asset' },
   { id: 'xdr-args', label: 'XDR Cheat Sheet' },
   { id: 'api-reference', label: 'API Reference' },
+  { id: 'wallet-addresses', label: 'Wallet Addresses' },
   { id: 'ai-ide', label: 'AI IDE Context' },
 ];
 
@@ -684,6 +685,26 @@ xdr.ScVal.scvMap([
                 </div>
               </div>
             ))}
+
+            {/* Wallet address note */}
+            <div id="wallet-addresses" className="scroll-mt-24">
+              <p className="text-sm font-semibold text-slate-300 mb-3 pb-2 border-b border-[#1e293b]">Wallet Addresses</p>
+              <div className="space-y-3">
+                <Warn>
+                  Orbi wallet addresses are Soroban smart contracts (<code className="text-amber-200 bg-amber-500/10 px-1 rounded">C...</code>), not classic Stellar accounts (<code className="text-amber-200 bg-amber-500/10 px-1 rounded">G...</code>). Horizon&apos;s <code className="text-amber-200 bg-amber-500/10 px-1 rounded">/accounts/&#123;address&#125;</code> endpoint will not return a balance for them.
+                </Warn>
+                <div className="bg-[#0f172a] border border-[#1e293b] rounded-xl p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+                    <code className="text-blue-300 text-xs font-mono">GET https://api.orbiwallet.xyz/v1/wallet/balance/&#123;address&#125;</code>
+                    <code className="text-slate-500 text-xs font-mono">no API key required</code>
+                  </div>
+                  <p className="text-slate-400 text-xs leading-relaxed mb-3">Returns the XLM balance of any Orbi wallet address.</p>
+                  <CodeBlock code={`const res = await fetch('https://api.orbiwallet.xyz/v1/wallet/balance/' + walletAddress);
+const { xlm } = await res.json();
+// { xlm: "10000.0000000" }`} />
+                </div>
+              </div>
+            </div>
           </section>
 
           {/* Footer */}
