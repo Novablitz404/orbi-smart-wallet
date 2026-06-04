@@ -64,12 +64,10 @@ const NAV = [
   { id: 'overview', label: 'Overview' },
   { id: 'templates', label: 'Templates' },
   { id: 'install', label: '1. Install' },
-  { id: 'initialize', label: '2. Initialize' },
-  { id: 'connect', label: '3. Connect Wallet' },
-  { id: 'sign', label: '4. Sign Transaction' },
-  { id: 'gasless', label: '5. Gasless Setup' },
+  { id: 'connect', label: '2. Connect Wallet' },
+  { id: 'sign', label: '3. Sign Transaction' },
+  { id: 'gasless', label: '4. Gasless Setup' },
   { id: 'watch-asset', label: 'Watch Asset' },
-  { id: 'xdr-args', label: 'Encoding Args (XDR)' },
   { id: 'api-reference', label: 'API Reference' },
 ];
 
@@ -288,27 +286,10 @@ orbi.sign({ walletAddress, contractId, functionName, argsXdr, redirectUrl });`} 
 
           <Divider />
 
-          {/* ── 2. Initialize ────────────────────────────────────────────────── */}
-          <section id="initialize" className="scroll-mt-24 space-y-4">
-            <h2 className="text-xl font-bold text-white">2. Initialize</h2>
-            <p className="text-slate-400 text-sm">
-              Create one <code className="text-slate-300 bg-slate-800 px-1 rounded text-xs">lib/orbi.ts</code> file and export a single client. Import it wherever you need it.
-            </p>
-            <CodeBlock code={`// lib/orbi.ts
-import { OrbiClient } from '@orbi-wallet/sdk';
-
-export const orbi = new OrbiClient({
-  apiUrl: 'https://api.orbiwallet.xyz',
-  // apiKey: process.env.NEXT_PUBLIC_ORBI_API_KEY,  // add this for gasless
-});`} />
-          </section>
-
-          <Divider />
-
-          {/* ── 3. Connect Wallet ────────────────────────────────────────────── */}
+          {/* ── 2. Connect Wallet ────────────────────────────────────────────── */}
           <section id="connect" className="scroll-mt-24 space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-white mb-1">3. Connect Wallet</h2>
+              <h2 className="text-xl font-bold text-white mb-1">2. Connect Wallet</h2>
               <p className="text-slate-400 text-sm">
                 Two calls — one to start the flow, one to handle the return.
               </p>
@@ -353,7 +334,7 @@ if (wallet) {
           {/* ── 4. Sign a Transaction ────────────────────────────────────────── */}
           <section id="sign" className="scroll-mt-24 space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-white mb-1">4. Sign a Transaction</h2>
+              <h2 className="text-xl font-bold text-white mb-1">3. Sign a Transaction</h2>
               <p className="text-slate-400 text-sm">
                 Two calls — one to send the user to approve, one to submit the result.
               </p>
@@ -365,7 +346,7 @@ if (wallet) {
                 <p className="text-sm font-semibold text-white">Encode your args and redirect the user to approve</p>
               </div>
               <p className="text-slate-400 text-xs ml-10">
-                Encode each contract argument as a base64 XDR string. See <a href="#xdr-args" className="text-blue-400 hover:underline">Encoding Args</a> for all types.
+                Encode each contract argument as a base64 XDR string using <code className="text-slate-300 bg-slate-800 px-1 rounded">nativeToScVal</code>. One entry per argument your function expects.
               </p>
               <CodeBlock code={`import { nativeToScVal } from '@stellar/stellar-sdk';
 import { orbi } from './lib/orbi';
@@ -385,8 +366,28 @@ orbi.sign({
   functionName: 'YOUR_FUNCTION_NAME',
   argsXdr,
   redirectUrl: 'https://yourapp.com/sign-callback',
-});
-// User sees the Orbi approval screen, approves with passkey, returns to redirectUrl`} />
+});`} />
+              <div className="ml-0 mt-3 bg-[#0f172a] border border-[#1e293b] rounded-xl p-4 space-y-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Arg types — quick reference</p>
+                <CodeBlock code={`// Address (G... or C...)
+nativeToScVal('GBXXX...', { type: 'address' }).toXDR('base64')
+
+// Numbers
+nativeToScVal(42, { type: 'i32' }).toXDR('base64')
+nativeToScVal(42, { type: 'u32' }).toXDR('base64')
+nativeToScVal(BigInt(10_000_000), { type: 'i128' }).toXDR('base64')  // always BigInt for i128/u128
+nativeToScVal(BigInt(10_000_000), { type: 'u128' }).toXDR('base64')
+
+// Boolean
+nativeToScVal(true, { type: 'bool' }).toXDR('base64')
+
+// String / Symbol
+nativeToScVal('hello', { type: 'string' }).toXDR('base64')
+nativeToScVal('Approved', { type: 'symbol' }).toXDR('base64')`} />
+                <Note>
+                  XLM amounts are in stroops — 1 XLM = 10,000,000 stroops. Always use <code className="text-slate-300">BigInt</code> for <code className="text-slate-300">i128</code>/<code className="text-slate-300">u128</code>.
+                </Note>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -425,7 +426,7 @@ const status = await orbi.waitForConfirmation(opId);
           {/* ── 5. Gasless ───────────────────────────────────────────────────── */}
           <section id="gasless" className="scroll-mt-24 space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-white mb-1">5. Gasless Transactions</h2>
+              <h2 className="text-xl font-bold text-white mb-1">4. Gasless Transactions</h2>
               <p className="text-slate-400 text-sm">
                 Sponsor Stellar fees for your users — they see{' '}
                 <span className="text-green-400">"Sponsored by [your app]"</span> and pay nothing.
@@ -518,66 +519,6 @@ orbi.watchAsset({
             <CodeBlock code={`// On your callback page — handle the return
 const result = orbi.handleWatchAssetCallback();
 // result = { contractId: string, added: boolean } — or null if nothing to process`} />
-          </section>
-
-          <Divider />
-
-          {/* ── XDR Args ─────────────────────────────────────────────────────── */}
-          <section id="xdr-args" className="scroll-mt-24 space-y-4">
-            <h2 className="text-xl font-bold text-white">Encoding Contract Args (XDR)</h2>
-            <p className="text-slate-400 text-sm">
-              Every Soroban argument passed to <code className="text-slate-300 bg-slate-800 px-1 rounded text-xs">orbi.sign()</code> must be a base64 XDR string. Use <code className="text-slate-300 bg-slate-800 px-1 rounded text-xs">nativeToScVal</code> from <code className="text-slate-300 bg-slate-800 px-1 rounded text-xs">@stellar/stellar-sdk</code>.
-            </p>
-            <CodeBlock code={`import { nativeToScVal, xdr } from '@stellar/stellar-sdk';
-
-// Address (G... or C...)
-nativeToScVal('GBXXX...', { type: 'address' }).toXDR('base64')
-
-// Integers
-nativeToScVal(42, { type: 'i32' }).toXDR('base64')
-nativeToScVal(42, { type: 'u32' }).toXDR('base64')
-nativeToScVal(BigInt(10_000_000), { type: 'i128' }).toXDR('base64')  // use BigInt for i128/u128
-nativeToScVal(BigInt(10_000_000), { type: 'u128' }).toXDR('base64')
-
-// Boolean
-nativeToScVal(true, { type: 'bool' }).toXDR('base64')
-
-// String / Symbol
-nativeToScVal('hello', { type: 'string' }).toXDR('base64')
-nativeToScVal('Approved', { type: 'symbol' }).toXDR('base64')
-
-// Bytes
-nativeToScVal(Buffer.from('deadbeef', 'hex'), { type: 'bytes' }).toXDR('base64')
-
-// Vec (array)
-xdr.ScVal.scvVec([
-  nativeToScVal('GBXXX...', { type: 'address' }),
-  nativeToScVal('GBYYY...', { type: 'address' }),
-]).toXDR('base64')
-
-// Map
-xdr.ScVal.scvMap([
-  new xdr.ScMapEntry({
-    key: nativeToScVal('amount', { type: 'symbol' }),
-    val: nativeToScVal(BigInt(1_000_000), { type: 'i128' }),
-  }),
-]).toXDR('base64')`} />
-
-            <Note>
-              XLM amounts are in stroops — 1 XLM = 10,000,000 stroops. Always use <code className="text-slate-300">BigInt</code> for <code className="text-slate-300">i128</code>/<code className="text-slate-300">u128</code> to avoid precision loss.
-            </Note>
-
-            <div className="bg-[#0f172a] border border-[#1e293b] rounded-xl p-4 space-y-2">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">XLM SAC contract IDs</p>
-              <div className="flex items-start gap-3">
-                <span className="text-xs text-slate-500 shrink-0 w-16">Testnet</span>
-                <code className="text-slate-300 text-xs break-all">CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCN</code>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="text-xs text-slate-500 shrink-0 w-16">Mainnet</span>
-                <code className="text-slate-300 text-xs break-all">CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWL</code>
-              </div>
-            </div>
           </section>
 
           <Divider />
