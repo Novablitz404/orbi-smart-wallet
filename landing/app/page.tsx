@@ -79,7 +79,7 @@ export default function Home() {
         </div>
 
         {/* Mobile: single column */}
-        <div className="relative z-10 w-full md:hidden flex flex-col h-[100dvh] px-6 pb-8 pt-24">
+        <div className="relative z-10 w-full md:hidden flex flex-col h-[100dvh] px-6 pb-8 pt-16">
           <h1 className="animate-fade-up text-[2.8rem] font-bold text-white leading-[0.95] tracking-tight">
             <span className="whitespace-nowrap">Your smart wallet,</span><br />
             unchained.
