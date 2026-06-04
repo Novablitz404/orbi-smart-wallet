@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 const ITEMS = [
   {
@@ -38,6 +38,23 @@ const ITEMS = [
 export default function DevDropdown() {
   const [open, setOpen] = useState(false);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click (mobile tap-away)
+  useEffect(() => {
+    if (!open) return;
+    function handleOutside(e: MouseEvent | TouchEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+    };
+  }, [open]);
 
   function onEnter() {
     if (leaveTimer.current) clearTimeout(leaveTimer.current);
@@ -50,11 +67,15 @@ export default function DevDropdown() {
 
   return (
     <div
-      className="relative hidden md:block"
+      ref={ref}
+      className="relative"
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
     >
-      <button className="flex items-center gap-1 text-slate-400 hover:text-white text-sm px-4 py-1.5 rounded-full hover:bg-white/5 transition-colors">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1 text-slate-400 hover:text-white text-xs md:text-sm px-2.5 md:px-4 py-1.5 rounded-full hover:bg-white/5 transition-colors"
+      >
         Developers
         <svg
           className={`w-3 h-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
@@ -73,6 +94,7 @@ export default function DevDropdown() {
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => setOpen(false)}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors group"
               >
                 <span className="text-slate-500 group-hover:text-slate-300 transition-colors shrink-0">
