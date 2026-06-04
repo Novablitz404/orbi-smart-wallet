@@ -95,9 +95,9 @@ export default function SignPage() {
         argsXdr: r.argsXdr,
       }),
     })
-      .then(res => res.json())
+      .then(res => { if (!res.ok) throw new Error('quote failed'); return res.json(); })
       .then((q: QuoteResult) => setQuote(q))
-      .catch(() => { /* fee row stays blank */ });
+      .catch(() => { /* fee row stays as Calculating… */ });
 
     setStep('review');
   }, []);
@@ -118,6 +118,19 @@ export default function SignPage() {
   }
 
   function sendCancel() {
+    // Redirect flow (SDK): no popup opener to message — send the user back to the
+    // dApp's redirect URL with a cancelled flag so their callback can react.
+    const redirectUrl = new URLSearchParams(window.location.search).get('redirect');
+    if (redirectUrl) {
+      try {
+        const url = new URL(redirectUrl);
+        url.searchParams.set('cancelled', '1');
+        window.location.href = url.toString();
+        return;
+      } catch { /* fall through to popup handling */ }
+    }
+
+    // Popup flow: message the opener and close.
     const msg = { type: 'orbi_cancelled' };
     if (req?.channelId) {
       const bc = new BroadcastChannel(req.channelId);
