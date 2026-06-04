@@ -62,6 +62,7 @@ function Divider() {
 
 const NAV = [
   { id: 'overview', label: 'Overview' },
+  { id: 'example', label: 'Example dApp' },
   { id: 'templates', label: 'Templates' },
   { id: 'install', label: '1. Install' },
   { id: 'connect', label: '2. Connect Wallet' },
@@ -181,6 +182,44 @@ export default function DocsPage() {
               <p className="text-slate-600 text-xs mt-4">
                 The connect button and sign trigger go into your <span className="text-slate-400">existing</span> pages — no new files needed for those.
               </p>
+            </div>
+
+            {/* Example dApp */}
+            <div id="example" className="scroll-mt-24 bg-gradient-to-br from-[#30b27c]/10 to-transparent border border-[#30b27c]/20 rounded-2xl p-5">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#30b27c]/15 border border-[#30b27c]/20 flex items-center justify-center shrink-0">
+                  <svg className="w-4.5 h-4.5 text-[#30b27c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ width: 18, height: 18 }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white mb-1">Example dApp — Orbi Points</p>
+                  <p className="text-slate-400 text-xs leading-relaxed mb-4">
+                    A complete, minimal Next.js dApp that uses every piece of the SDK: connect a wallet, sign a custom contract call with a passkey, sponsor gas, and read on-chain state. Fork it as a starting point — it&apos;s the exact 3-file pattern above, fully wired.
+                  </p>
+                  <div className="flex flex-wrap gap-2.5">
+                    <a
+                      href="https://demo.orbiwallet.xyz"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 bg-[#30b27c] hover:bg-[#28a06e] text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors"
+                    >
+                      Live demo
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                    </a>
+                    <a
+                      href="https://github.com/Novablitz404/orbi-demo"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 bg-[#0f172a] hover:bg-[#1e293b] border border-[#1e293b] text-slate-300 text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors"
+                    >
+                      View source
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
 
           </section>
