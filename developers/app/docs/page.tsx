@@ -711,19 +711,7 @@ xdr.ScVal.scvMap([
           </section>
 
           {/* Footer */}
-          <footer className="pt-10 pb-6 border-t border-[#1e293b]">
-            <div className="flex flex-wrap gap-6 text-xs text-slate-600">
-              <a href="https://npmjs.com/package/@orbi-wallet/sdk" target="_blank" rel="noopener noreferrer" className="hover:text-slate-400 transition-colors">
-                @orbi-wallet/sdk on npm
-              </a>
-              <a href="https://github.com/Novablitz404/orbi-smart-wallet" target="_blank" rel="noopener noreferrer" className="hover:text-slate-400 transition-colors">
-                GitHub
-              </a>
-              <a href="https://orbiwallet.xyz" target="_blank" rel="noopener noreferrer" className="hover:text-slate-400 transition-colors">
-                orbiwallet.xyz
-              </a>
-            </div>
-          </footer>
+          <footer className="pt-10 pb-6 border-t border-[#1e293b]" />
 
         </main>
       </div>
