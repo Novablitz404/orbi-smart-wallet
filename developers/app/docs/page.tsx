@@ -12,8 +12,8 @@ function CodeBlock({ code }: { code: string }) {
     setTimeout(() => setCopied(false), 2000);
   }
   return (
-    <div className="relative">
-      <pre className="bg-[#020817] border border-[#1e293b] rounded-xl px-4 py-4 text-xs text-slate-300 leading-relaxed overflow-x-auto">
+    <div className="relative min-w-0 max-w-full">
+      <pre className="bg-[#020817] border border-[#1e293b] rounded-xl px-4 py-4 text-xs text-slate-300 leading-relaxed overflow-x-auto max-w-full">
         <code>{code}</code>
       </pre>
       <button
@@ -75,7 +75,7 @@ const NAV = [
 
 export default function DocsPage() {
   return (
-    <div className="min-h-screen bg-[#020817] text-slate-100">
+    <div className="min-h-screen bg-[#020817] text-slate-100 overflow-x-hidden">
 
       {/* Top nav */}
       <header className="sticky top-0 z-10 bg-[#020817]/90 backdrop-blur border-b border-[#1e293b] px-4 py-3.5">
