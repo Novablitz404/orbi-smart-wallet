@@ -188,9 +188,14 @@ export default function DashboardPage() {
           <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl p-6 space-y-6">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Quick Start — Gasless</p>
-              <button onClick={copySnippet} className="text-xs text-slate-400 hover:text-white transition-colors">
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
+              <div className="flex items-center gap-4">
+                <Link href="/docs" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                  Full docs →
+                </Link>
+                <button onClick={copySnippet} className="text-xs text-slate-400 hover:text-white transition-colors">
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
             </div>
 
             <p className="text-slate-400 text-sm leading-relaxed">
